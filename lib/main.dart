@@ -6,13 +6,14 @@ import 'add_producto_screen.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
 import 'edit_producto_screen.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart'; // Importar el paquete intl
 
 void main() {
   runApp(MyApp());
 
-    // Establecer la orientación de la pantalla a solo vertical
+  // Establecer la orientación de la pantalla a solo vertical
   SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,   // Vertical normal
+    DeviceOrientation.portraitUp, // Vertical normal
     DeviceOrientation.portraitDown, // Vertical invertida
   ]).then((_) {
     runApp(MyApp());
@@ -26,7 +27,7 @@ class MyApp extends StatelessWidget {
       title: 'Tienda Productos',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
+          seedColor: Colors.lightBlue,
           brightness: Brightness.light,
         ),
         useMaterial3: true,
@@ -48,6 +49,13 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Producto> productosFiltrados = [];
   final _searchController = TextEditingController();
   bool _isSearching = false;
+
+  // Función para formatear el valor como moneda COP
+  String _formatCurrency(double value) {
+    final format =
+        NumberFormat.currency(locale: 'es_CO', symbol: '', decimalDigits: 0);
+    return format.format(value);
+  }
 
   Future<void> _loadProductos() async {
     final data = await DatabaseHelper.instance.getProductos();
@@ -213,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             title: Text(producto.nombre,
                                 style: TextStyle(fontWeight: FontWeight.w500)),
                             subtitle: Text(
-                              "Código: ${producto.codigo} | \$${producto.precio.toStringAsFixed(2)} | Stock: ${producto.stock}",
+                              "Código: ${producto.codigo} | \$ ${_formatCurrency(producto.precio)} | Stock: ${producto.stock}",
                               style: TextStyle(color: Colors.black54),
                             ),
                             trailing: Icon(Icons.chevron_right,

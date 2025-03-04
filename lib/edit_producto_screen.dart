@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'database_helper.dart';
 import 'producto_model.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart'; // Importar el paquete intl
 
 class EditProductoScreen extends StatefulWidget {
   final Producto producto;
@@ -20,13 +20,28 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
   final _precioController = TextEditingController();
   final _pesoController = TextEditingController();
   final _stockController = TextEditingController();
+  final FocusNode _precioFocusNode = FocusNode(); // FocusNode para el campo de precio
 
-  // Formateador de moneda
-  final NumberFormat _currencyFormat = NumberFormat.currency(
-    locale: 'es_CO', // Cambia el locale según tu región
-    symbol: '\$', // Símbolo de la moneda
-    decimalDigits: 0, // Número de decimales
-  );
+  // Función para formatear el valor como moneda COP
+  String _formatCurrency(double value) {
+    final format = NumberFormat.currency(locale: 'es_CO', symbol: '', decimalDigits: 0);
+    return format.format(value);
+  }
+
+  // Función para desformatear el valor de moneda COP a double
+  double _parseCurrency(String value) {
+    final cleanedValue = value.replaceAll(RegExp(r'[^0-9]'), '');
+    return double.tryParse(cleanedValue) ?? 0.0;
+  }
+
+  // Función para formatear el precio cuando el campo pierde el foco
+  void _formatPrecioOnUnfocus() {
+    final doubleValue = _parseCurrency(_precioController.text);
+    _precioController.value = TextEditingValue(
+      text: _formatCurrency(doubleValue),
+      selection: TextSelection.collapsed(offset: _formatCurrency(doubleValue).length),
+    );
+  }
 
   @override
   void initState() {
@@ -35,24 +50,33 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
     _nombreController.text = widget.producto.nombre;
     _codigoController.text = widget.producto.codigo;
     _categoriaController.text = widget.producto.categoria;
-    _precioController.text =
-        _currencyFormat.format(widget.producto.precio); // Formatear precio
+    _precioController.text = _formatCurrency(widget.producto.precio); // Formatear el precio inicial
     _pesoController.text = widget.producto.peso.toString();
     _stockController.text = widget.producto.stock.toString();
+
+    // Listener para formatear el precio cuando el campo pierde el foco
+    _precioFocusNode.addListener(() {
+      if (!_precioFocusNode.hasFocus) {
+        _formatPrecioOnUnfocus();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _precioFocusNode.dispose(); // Liberar el FocusNode
+    _precioController.dispose();
+    super.dispose();
   }
 
   Future<void> _updateProducto() async {
     if (_formKey.currentState!.validate()) {
-      // Convertir el precio formateado a double
-      final precio = _currencyFormat
-          .parse(_precioController.text.replaceAll('\$', '').trim());
-
       final producto = Producto(
         id: widget.producto.id,
         nombre: _nombreController.text,
         codigo: _codigoController.text,
         categoria: _categoriaController.text,
-        precio: precio.toDouble(),
+        precio: _parseCurrency(_precioController.text), // Desformatear el precio
         peso: double.parse(_pesoController.text),
         stock: int.parse(_stockController.text),
       );
@@ -111,12 +135,14 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildCurrencyTextField(
+                      child: _buildTextField(
                         controller: _precioController,
                         label: "Precio",
                         icon: Icons.attach_money_outlined,
+                        keyboardType: TextInputType.number,
                         validator: (value) =>
                             value!.isEmpty ? "Ingrese un precio" : null,
+                        focusNode: _precioFocusNode, // Asignar el FocusNode
                       ),
                     ),
                     SizedBox(width: 16),
@@ -175,6 +201,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
     required IconData icon,
     TextInputType keyboardType = TextInputType.text,
     String? Function(String?)? validator,
+    FocusNode? focusNode, // Parámetro opcional para el FocusNode
   }) {
     return TextFormField(
       controller: controller,
@@ -192,44 +219,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
       ),
       keyboardType: keyboardType,
       validator: validator,
-    );
-  }
-
-  Widget _buildCurrencyTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: Colors.black54),
-        filled: true,
-        fillColor: Colors.grey.shade100,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        labelStyle: TextStyle(color: Colors.black54),
-      ),
-      keyboardType: TextInputType.numberWithOptions(decimal: true),
-      validator: validator,
-      onChanged: (value) {
-        // Formatear el valor mientras el usuario escribe
-        if (value.isNotEmpty) {
-          final parsedValue =
-              double.tryParse(value.replaceAll('\$', '').replaceAll(',', '')) ??
-                  0.0;
-          controller.value = TextEditingValue(
-            text: _currencyFormat.format(parsedValue),
-            selection: TextSelection.collapsed(
-                offset: _currencyFormat.format(parsedValue).length),
-          );
-        }
-      },
+      focusNode: focusNode, // Asignar el FocusNode
     );
   }
 }

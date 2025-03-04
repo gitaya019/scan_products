@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
 import 'database_helper.dart';
 import 'producto_model.dart';
+import 'package:intl/intl.dart'; // Importar el paquete intl
 
 class AddProductoScreen extends StatefulWidget {
   @override
@@ -16,6 +17,48 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
   final _precioController = TextEditingController();
   final _pesoController = TextEditingController();
   final _stockController = TextEditingController();
+  final FocusNode _precioFocusNode =
+      FocusNode(); // FocusNode para el campo de precio
+
+  // Función para formatear el valor como moneda COP
+  String _formatCurrency(double value) {
+    final format =
+        NumberFormat.currency(locale: 'es_CO', symbol: '', decimalDigits: 0);
+    return format.format(value);
+  }
+
+  // Función para desformatear el valor de moneda COP a double
+  double _parseCurrency(String value) {
+    final cleanedValue = value.replaceAll(RegExp(r'[^0-9]'), '');
+    return double.tryParse(cleanedValue) ?? 0.0;
+  }
+
+  // Función para formatear el precio cuando el campo pierde el foco
+  void _formatPrecioOnUnfocus() {
+    final doubleValue = _parseCurrency(_precioController.text);
+    _precioController.value = TextEditingValue(
+      text: _formatCurrency(doubleValue),
+      selection:
+          TextSelection.collapsed(offset: _formatCurrency(doubleValue).length),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _precioFocusNode.addListener(() {
+      if (!_precioFocusNode.hasFocus) {
+        _formatPrecioOnUnfocus(); // Formatear el precio cuando el campo pierde el foco
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _precioFocusNode.dispose(); // Liberar el FocusNode
+    _precioController.dispose();
+    super.dispose();
+  }
 
   Future<void> _scanBarcode() async {
     var result = await BarcodeScanner.scan();
@@ -24,7 +67,8 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
     });
 
     // Verificar si el producto ya existe
-    final productoExistente = await DatabaseHelper.instance.getProductoByCodigo(result.rawContent);
+    final productoExistente =
+        await DatabaseHelper.instance.getProductoByCodigo(result.rawContent);
     if (productoExistente != null) {
       _showUpdateStockDialog(productoExistente);
     }
@@ -53,9 +97,11 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
               onPressed: () async {
                 final cantidad = int.tryParse(cantidadController.text) ?? 0;
                 if (cantidad > 0) {
-                  await DatabaseHelper.instance.updateStock(producto.codigo, cantidad);
+                  await DatabaseHelper.instance
+                      .updateStock(producto.codigo, cantidad);
                   Navigator.pop(context);
-                  Navigator.pop(context); // Cerrar la pantalla de agregar producto
+                  Navigator.pop(
+                      context); // Cerrar la pantalla de agregar producto
                 }
               },
               child: Text("Agregar"),
@@ -72,7 +118,8 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
         nombre: _nombreController.text,
         codigo: _codigoController.text,
         categoria: _categoriaController.text,
-        precio: double.parse(_precioController.text),
+        precio:
+            _parseCurrency(_precioController.text), // Desformatear el precio
         peso: double.parse(_pesoController.text),
         stock: int.parse(_stockController.text),
       );
@@ -154,10 +201,10 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                         controller: _precioController,
                         label: "Precio",
                         icon: Icons.attach_money_outlined,
-                        keyboardType:
-                            TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: TextInputType.number,
                         validator: (value) =>
                             value!.isEmpty ? "Ingrese un precio" : null,
+                        focusNode: _precioFocusNode, // Asignar el FocusNode
                       ),
                     ),
                     SizedBox(width: 16),
@@ -216,6 +263,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
     required IconData icon,
     TextInputType keyboardType = TextInputType.text,
     String? Function(String?)? validator,
+    FocusNode? focusNode, // Parámetro opcional para el FocusNode
   }) {
     return TextFormField(
       controller: controller,
@@ -233,6 +281,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
       ),
       keyboardType: keyboardType,
       validator: validator,
+      focusNode: focusNode, // Asignar el FocusNode
     );
   }
 }
