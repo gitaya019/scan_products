@@ -4,9 +4,19 @@ import 'database_helper.dart';
 import 'producto_model.dart';
 import 'add_producto_screen.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
+import 'edit_producto_screen.dart';
+import 'package:flutter/services.dart';
 
 void main() {
   runApp(MyApp());
+
+    // Establecer la orientación de la pantalla a solo vertical
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,   // Vertical normal
+    DeviceOrientation.portraitDown, // Vertical invertida
+  ]).then((_) {
+    runApp(MyApp());
+  });
 }
 
 class MyApp extends StatelessWidget {
@@ -97,11 +107,9 @@ class _HomeScreenState extends State<HomeScreen> {
               snap: true,
               backgroundColor: Colors.white,
               title: Text(
-                "Mis Productos", 
+                "Mis Productos",
                 style: TextStyle(
-                  fontWeight: FontWeight.w300, 
-                  color: Colors.black87
-                ),
+                    fontWeight: FontWeight.w300, color: Colors.black87),
               ),
               actions: [
                 IconButton(
@@ -114,7 +122,8 @@ class _HomeScreenState extends State<HomeScreen> {
               bottom: PreferredSize(
                 preferredSize: Size.fromHeight(80),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
                   child: Row(
                     children: [
                       Expanded(
@@ -128,17 +137,20 @@ class _HomeScreenState extends State<HomeScreen> {
                             decoration: InputDecoration(
                               hintText: "Buscar producto...",
                               hintStyle: TextStyle(color: Colors.black45),
-                              prefixIcon: Icon(Icons.search, color: Colors.black54),
+                              prefixIcon:
+                                  Icon(Icons.search, color: Colors.black54),
                               suffixIcon: _searchController.text.isNotEmpty
                                   ? IconButton(
-                                      icon: Icon(Icons.clear, color: Colors.black54),
+                                      icon: Icon(Icons.clear,
+                                          color: Colors.black54),
                                       onPressed: () {
                                         _searchController.clear();
                                       },
                                     )
                                   : null,
                               border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(vertical: 15, horizontal: 15),
+                              contentPadding: EdgeInsets.symmetric(
+                                  vertical: 15, horizontal: 15),
                             ),
                           ),
                         ),
@@ -150,7 +162,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: IconButton(
-                          icon: Icon(Icons.qr_code_scanner, color: Colors.black54),
+                          icon: Icon(Icons.qr_code_scanner,
+                              color: Colors.black54),
                           onPressed: _scanBarcode,
                         ),
                       ),
@@ -166,19 +179,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        _isSearching ? Icons.search_off : Icons.inventory_2_outlined, 
-                        size: 80, 
-                        color: Colors.black26
-                      ),
+                          _isSearching
+                              ? Icons.search_off
+                              : Icons.inventory_2_outlined,
+                          size: 80,
+                          color: Colors.black26),
                       SizedBox(height: 16),
                       Text(
-                        _isSearching 
-                          ? "No se encontraron productos" 
-                          : "No hay productos registrados",
+                        _isSearching
+                            ? "No se encontraron productos"
+                            : "No hay productos registrados",
                         style: TextStyle(
-                          color: Colors.black45, 
-                          fontWeight: FontWeight.w300
-                        ),
+                            color: Colors.black45, fontWeight: FontWeight.w300),
                       ),
                     ],
                   ),
@@ -190,25 +202,37 @@ class _HomeScreenState extends State<HomeScreen> {
                   (context, index) {
                     final producto = productosFiltrados[index];
                     return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: ListTile(
-                          title: Text(
-                            producto.nombre, 
-                            style: TextStyle(fontWeight: FontWeight.w500)
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0, vertical: 8),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          subtitle: Text(
-                            "Código: ${producto.codigo} | \$${producto.precio.toStringAsFixed(2)}",
-                            style: TextStyle(color: Colors.black54),
+                          child: ListTile(
+                            title: Text(producto.nombre,
+                                style: TextStyle(fontWeight: FontWeight.w500)),
+                            subtitle: Text(
+                              "Código: ${producto.codigo} | \$${producto.precio.toStringAsFixed(2)} | Stock: ${producto.stock}",
+                              style: TextStyle(color: Colors.black54),
+                            ),
+                            trailing: Icon(Icons.chevron_right,
+                                color: Colors.black54),
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      EditProductoScreen(producto: producto),
+                                ),
+                              );
+                              _loadProductos(); // Recargar la lista después de editar
+                            },
                           ),
-                          trailing: Icon(Icons.chevron_right, color: Colors.black54),
-                        ),
-                      ),
-                    ).animate().fadeIn(duration: 300.ms).slideX(begin: 0.1);
+                        )
+                            .animate()
+                            .fadeIn(duration: 300.ms)
+                            .slideX(begin: 0.1));
                   },
                   childCount: productosFiltrados.length,
                 ),
@@ -223,10 +247,8 @@ class _HomeScreenState extends State<HomeScreen> {
           borderRadius: BorderRadius.circular(16),
         ),
         onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => AddProductoScreen())
-          );
+          await Navigator.push(context,
+              MaterialPageRoute(builder: (context) => AddProductoScreen()));
           _loadProductos();
         },
         child: Icon(Icons.add),

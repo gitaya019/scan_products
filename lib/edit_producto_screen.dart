@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:barcode_scan2/barcode_scan2.dart';
 import 'database_helper.dart';
 import 'producto_model.dart';
+import 'package:intl/intl.dart';
 
-class AddProductoScreen extends StatefulWidget {
+class EditProductoScreen extends StatefulWidget {
+  final Producto producto;
+
+  EditProductoScreen({required this.producto});
+
   @override
-  _AddProductoScreenState createState() => _AddProductoScreenState();
+  _EditProductoScreenState createState() => _EditProductoScreenState();
 }
 
-class _AddProductoScreenState extends State<AddProductoScreen> {
+class _EditProductoScreenState extends State<EditProductoScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nombreController = TextEditingController();
   final _codigoController = TextEditingController();
@@ -17,67 +21,43 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
   final _pesoController = TextEditingController();
   final _stockController = TextEditingController();
 
-  Future<void> _scanBarcode() async {
-    var result = await BarcodeScanner.scan();
-    setState(() {
-      _codigoController.text = result.rawContent;
-    });
+  // Formateador de moneda
+  final NumberFormat _currencyFormat = NumberFormat.currency(
+    locale: 'es_CO', // Cambia el locale según tu región
+    symbol: '\$', // Símbolo de la moneda
+    decimalDigits: 0, // Número de decimales
+  );
 
-    // Verificar si el producto ya existe
-    final productoExistente = await DatabaseHelper.instance.getProductoByCodigo(result.rawContent);
-    if (productoExistente != null) {
-      _showUpdateStockDialog(productoExistente);
-    }
+  @override
+  void initState() {
+    super.initState();
+    // Inicializa los controladores con los datos del producto
+    _nombreController.text = widget.producto.nombre;
+    _codigoController.text = widget.producto.codigo;
+    _categoriaController.text = widget.producto.categoria;
+    _precioController.text =
+        _currencyFormat.format(widget.producto.precio); // Formatear precio
+    _pesoController.text = widget.producto.peso.toString();
+    _stockController.text = widget.producto.stock.toString();
   }
 
-  Future<void> _showUpdateStockDialog(Producto producto) async {
-    final cantidadController = TextEditingController();
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("Producto Existente"),
-          content: TextField(
-            controller: cantidadController,
-            decoration: InputDecoration(labelText: "Cantidad a agregar"),
-            keyboardType: TextInputType.number,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: Text("Cancelar"),
-            ),
-            TextButton(
-              onPressed: () async {
-                final cantidad = int.tryParse(cantidadController.text) ?? 0;
-                if (cantidad > 0) {
-                  await DatabaseHelper.instance.updateStock(producto.codigo, cantidad);
-                  Navigator.pop(context);
-                  Navigator.pop(context); // Cerrar la pantalla de agregar producto
-                }
-              },
-              child: Text("Agregar"),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _saveProducto() async {
+  Future<void> _updateProducto() async {
     if (_formKey.currentState!.validate()) {
+      // Convertir el precio formateado a double
+      final precio = _currencyFormat
+          .parse(_precioController.text.replaceAll('\$', '').trim());
+
       final producto = Producto(
+        id: widget.producto.id,
         nombre: _nombreController.text,
         codigo: _codigoController.text,
         categoria: _categoriaController.text,
-        precio: double.parse(_precioController.text),
+        precio: precio.toDouble(),
         peso: double.parse(_pesoController.text),
         stock: int.parse(_stockController.text),
       );
 
-      await DatabaseHelper.instance.addProducto(producto.toMap());
+      await DatabaseHelper.instance.updateProducto(producto.toMap());
       Navigator.pop(context);
     }
   }
@@ -90,7 +70,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
         elevation: 0,
         backgroundColor: Colors.transparent,
         title: Text(
-          "Agregar Producto",
+          "Editar Producto",
           style: TextStyle(
               color: Colors.black87, fontWeight: FontWeight.w300, fontSize: 22),
         ),
@@ -112,31 +92,12 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                       value!.isEmpty ? "Ingrese un nombre" : null,
                 ),
                 SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _buildTextField(
-                        controller: _codigoController,
-                        label: "Código de Barras",
-                        icon: Icons.barcode_reader,
-                        validator: (value) =>
-                            value!.isEmpty ? "Ingrese un código" : null,
-                      ),
-                    ),
-                    SizedBox(width: 12),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black12,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: IconButton(
-                        icon: Icon(Icons.camera_alt_outlined,
-                            color: Colors.black54),
-                        onPressed: _scanBarcode,
-                      ),
-                    ),
-                  ],
+                _buildTextField(
+                  controller: _codigoController,
+                  label: "Código de Barras",
+                  icon: Icons.barcode_reader,
+                  validator: (value) =>
+                      value!.isEmpty ? "Ingrese un código" : null,
                 ),
                 SizedBox(height: 16),
                 _buildTextField(
@@ -150,12 +111,10 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildTextField(
+                      child: _buildCurrencyTextField(
                         controller: _precioController,
                         label: "Precio",
                         icon: Icons.attach_money_outlined,
-                        keyboardType:
-                            TextInputType.numberWithOptions(decimal: true),
                         validator: (value) =>
                             value!.isEmpty ? "Ingrese un precio" : null,
                       ),
@@ -177,15 +136,15 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                 SizedBox(height: 16),
                 _buildTextField(
                   controller: _stockController,
-                  label: "Stock Inicial",
+                  label: "Stock",
                   icon: Icons.inventory,
                   keyboardType: TextInputType.number,
                   validator: (value) =>
-                      value!.isEmpty ? "Ingrese un stock inicial" : null,
+                      value!.isEmpty ? "Ingrese un stock" : null,
                 ),
                 SizedBox(height: 32),
                 ElevatedButton(
-                  onPressed: _saveProducto,
+                  onPressed: _updateProducto,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black87,
                     padding: EdgeInsets.symmetric(vertical: 16),
@@ -195,7 +154,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                     elevation: 0,
                   ),
                   child: Text(
-                    "Guardar Producto",
+                    "Guardar Cambios",
                     style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w300,
@@ -233,6 +192,44 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
       ),
       keyboardType: keyboardType,
       validator: validator,
+    );
+  }
+
+  Widget _buildCurrencyTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: Colors.black54),
+        filled: true,
+        fillColor: Colors.grey.shade100,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        labelStyle: TextStyle(color: Colors.black54),
+      ),
+      keyboardType: TextInputType.numberWithOptions(decimal: true),
+      validator: validator,
+      onChanged: (value) {
+        // Formatear el valor mientras el usuario escribe
+        if (value.isNotEmpty) {
+          final parsedValue =
+              double.tryParse(value.replaceAll('\$', '').replaceAll(',', '')) ??
+                  0.0;
+          controller.value = TextEditingValue(
+            text: _currencyFormat.format(parsedValue),
+            selection: TextSelection.collapsed(
+                offset: _currencyFormat.format(parsedValue).length),
+          );
+        }
+      },
     );
   }
 }

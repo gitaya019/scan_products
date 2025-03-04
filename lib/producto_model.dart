@@ -5,6 +5,7 @@ class Producto {
   String categoria;
   double precio;
   double peso;
+  int stock;
 
   Producto({
     this.id,
@@ -13,6 +14,7 @@ class Producto {
     required this.categoria,
     required this.precio,
     required this.peso,
+    this.stock = 0,
   });
 
   Map<String, dynamic> toMap() {
@@ -23,6 +25,7 @@ class Producto {
       'categoria': categoria,
       'precio': precio,
       'peso': peso,
+      'stock': stock,
     };
   }
 
@@ -34,6 +37,7 @@ class Producto {
       categoria: map['categoria'],
       precio: map['precio'],
       peso: map['peso'],
+      stock: map['stock'],
     );
   }
 }
