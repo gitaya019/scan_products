@@ -217,11 +217,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     return Dismissible(
                       key: Key(producto.id?.toString() ??
                           'default_key'), // Handle nullable id
-                      direction: DismissDirection.endToStart,
+                      direction: DismissDirection.startToEnd,
                       background: Container(
                         color: Colors.red,
-                        alignment: Alignment.centerRight,
-                        padding: EdgeInsets.only(right: 20),
+                        alignment: Alignment.centerLeft,
+                        padding: EdgeInsets.only(left: 20),
                         child: Icon(Icons.delete, color: Colors.white),
                       ),
                       confirmDismiss: (direction) async {
@@ -237,13 +237,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                   onPressed: () {
                                     Navigator.of(context).pop(false);
                                   },
-                                  child: Text("Cancelar"),
+                                  child: Text(
+                                    "Cancelar",
+                                    style: TextStyle(color: Colors.green),
+                                  ),
                                 ),
                                 TextButton(
                                   onPressed: () {
                                     Navigator.of(context).pop(true);
                                   },
-                                  child: Text("Eliminar"),
+                                  child: Text(
+                                    "Eliminar",
+                                    style: TextStyle(color: Colors.red),
+                                  ),
                                 ),
                               ],
                             );
