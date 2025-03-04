@@ -94,6 +94,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _deleteProducto(int id) async {
+    await DatabaseHelper.instance.deleteProducto(id);
+    _loadProductos(); // Recargar la lista después de eliminar
+  }
+
   @override
   void initState() {
     super.initState();
@@ -209,7 +214,46 @@ class _HomeScreenState extends State<HomeScreen> {
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
                     final producto = productosFiltrados[index];
-                    return Padding(
+                    return Dismissible(
+                      key: Key(producto.id?.toString() ??
+                          'default_key'), // Handle nullable id
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        color: Colors.red,
+                        alignment: Alignment.centerRight,
+                        padding: EdgeInsets.only(right: 20),
+                        child: Icon(Icons.delete, color: Colors.white),
+                      ),
+                      confirmDismiss: (direction) async {
+                        return await showDialog(
+                          context: context,
+                          builder: (context) {
+                            return AlertDialog(
+                              title: Text("Eliminar Producto"),
+                              content: Text(
+                                  "¿Estás seguro de que deseas eliminar este producto?"),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pop(false);
+                                  },
+                                  child: Text("Cancelar"),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pop(true);
+                                  },
+                                  child: Text("Eliminar"),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                      onDismissed: (direction) {
+                        _deleteProducto(producto.id!); // Ensure id is non-null
+                      },
+                      child: Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16.0, vertical: 8),
                         child: Container(
@@ -234,13 +278,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                       EditProductoScreen(producto: producto),
                                 ),
                               );
-                              _loadProductos(); // Recargar la lista después de editar
+                              _loadProductos();
                             },
                           ),
-                        )
-                            .animate()
-                            .fadeIn(duration: 300.ms)
-                            .slideX(begin: 0.1));
+                        ),
+                      ),
+                    ).animate().fadeIn(duration: 300.ms).slideX(begin: 0.1);
                   },
                   childCount: productosFiltrados.length,
                 ),

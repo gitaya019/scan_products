@@ -54,14 +54,23 @@ class DatabaseHelper {
   }
 
   Future<int> updateProducto(Map<String, dynamic> producto) async {
-  final db = await database;
-  return await db.update(
-    'productos',
-    producto,
-    where: 'id = ?',
-    whereArgs: [producto['id']],
-  );
-}
+    final db = await database;
+    return await db.update(
+      'productos',
+      producto,
+      where: 'id = ?',
+      whereArgs: [producto['id']],
+    );
+  }
+
+  Future<int> deleteProducto(int id) async {
+    final db = await database;
+    return await db.delete(
+      'productos',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 
   Future<Producto?> getProductoByCodigo(String codigo) async {
     final db = await database;
