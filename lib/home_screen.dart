@@ -94,14 +94,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(
                     fontWeight: FontWeight.w300, color: Colors.black87),
               ),
-              actions: [
-                IconButton(
-                  icon: Icon(Icons.filter_list_outlined, color: Colors.black54),
-                  onPressed: () {
-                    // Future filter functionality
-                  },
-                ),
-              ],
               bottom: PreferredSize(
                 preferredSize: Size.fromHeight(80),
                 child: Padding(
