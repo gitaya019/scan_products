@@ -1,16 +1,18 @@
-# scan_products
+Scan Products 📦📲
+Versión 1.0.0
 
-A new Flutter project.
+Scan Products es una aplicación de inventario desarrollada en Flutter, diseñada para agilizar la gestión de productos mediante el escaneo de códigos de barras.
 
-## Getting Started
+✨ Características principales
+📷 Escaneo de códigos de barras para registrar nuevos productos o actualizar el stock.
+🔍 Búsqueda rápida de productos por código de barras o nombre.
+📊 Gestión de inventario con opciones para agregar, editar y eliminar productos.
+📜 Historial de movimientos para llevar un control detallado del stock.
+☁️ Sincronización en la nube (opcional) para respaldar y compartir datos.
+🚀 Primeros pasos
+Si es tu primera vez en Flutter, aquí tienes algunos recursos útiles:
 
-This project is a starting point for a Flutter application.
+Lab: Escribe tu primera app en Flutter
+Cookbook: Ejemplos útiles en Flutter
+Para más información, consulta la documentación oficial de Flutter, donde encontrarás tutoriales, muestras y guías detalladas.
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
