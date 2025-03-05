@@ -28,3 +28,5 @@ flutter pub get
 ---
 
 ## 📌 Capturas de pantalla
+
+![Logo](assets/app_icon_foreground.png)
