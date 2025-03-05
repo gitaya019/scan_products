@@ -1,4 +1,4 @@
-import 'dart:typed_data'; // For Uint8List
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:excel/excel.dart';
 import 'package:path_provider/path_provider.dart';
@@ -11,35 +11,98 @@ import 'package:share_plus/share_plus.dart';
 class Sidebar extends StatelessWidget {
   final Function onExportExcel;
 
-  Sidebar({required this.onExportExcel});
+  const Sidebar({Key? key, required this.onExportExcel}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          DrawerHeader(
-            decoration: BoxDecoration(
-              color: Colors.black87,
-            ),
-            child: Text(
-              'Menú',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
+      child: Container(
+        color: Colors.white,
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.black87, Colors.black54],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    'Scan Products',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Image.network(
+                        'https://flagcdn.com/w320/co.png',
+                        width: 40,
+                        height: 24,
+                        fit: BoxFit.cover,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'v1.0.0',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          ),
-          ListTile(
-            leading: Icon(Icons.import_export),
-            title: Text('Exportar a Excel'),
-            onTap: () {
-              onExportExcel();
-              Navigator.pop(context); // Cerrar el drawer después de la acción
-            },
-          ),
-        ],
+            ListTile(
+              leading: Icon(
+                Icons.import_export,
+                color: Colors.black87,
+              ),
+              title: Text(
+                'Exportar a Excel',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: () {
+                onExportExcel();
+                Navigator.pop(context);
+              },
+              trailing: Icon(
+                Icons.chevron_right,
+                color: Colors.black54,
+              ),
+            ),
+            Divider(
+              color: Colors.grey.shade300,
+              indent: 16,
+              endIndent: 16,
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'Desarrollado por JACSOFT',
+                style: TextStyle(
+                  color: Colors.black54,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -103,5 +166,6 @@ Future<void> exportToExcel() async {
   print('Archivo Excel guardado en: $filePath');
 
   // Compartir el archivo Excel
-  await Share.shareXFiles([XFile(filePath)], text: 'Aquí está el archivo Excel');
+  await Share.shareXFiles([XFile(filePath)],
+      text: 'Aquí está el archivo Excel');
 }
