@@ -25,10 +25,10 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
   final _marcaController = TextEditingController();
 
   late String _unidadMedida;
-  late String _iva;
+  final _ivaController = TextEditingController();
 
   final _unidades = ['kg', 'g', 'lb', 'L', 'mL', 'unidad', 'paquete', 'caja'];
-  final _ivas = ['0', '5', '19'];
+
 
   @override
   void initState() {
@@ -41,7 +41,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
     _stockController.text = widget.producto.stock.toString();
     _marcaController.text = widget.producto.marca ?? '';
     _unidadMedida = widget.producto.unidadMedida ?? _unidades.first;
-    _iva = widget.producto.iva.toStringAsFixed(0);
+    _ivaController.text = widget.producto.iva.toStringAsFixed(0);
   }
 
   @override
@@ -53,9 +53,40 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
     _pesoController.dispose();
     _stockController.dispose();
     _marcaController.dispose();
+    _ivaController.dispose();
     super.dispose();
   }
 
+  String _pesoLabel() {
+    switch (_unidadMedida) {
+      case 'kg':
+        return 'Peso (kg)';
+      case 'g':
+        return 'Peso (g)';
+      case 'lb':
+        return 'Peso (lb)';
+      case 'L':
+        return 'Volumen (L)';
+      case 'mL':
+        return 'Volumen (mL)';
+      default:
+        return 'Cantidad';
+    }
+  }
+
+  IconData _pesoIcon() {
+    switch (_unidadMedida) {
+      case 'L':
+      case 'mL':
+        return Icons.water_drop_outlined;
+      case 'unidad':
+      case 'paquete':
+      case 'caja':
+        return Icons.inventory_2_outlined;
+      default:
+        return Icons.monitor_weight_outlined;
+    }
+  }
   Future<void> _updateProducto() async {
     if (_formKey.currentState!.validate()) {
       final producto = Producto(
@@ -68,7 +99,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
         stock: int.parse(_stockController.text),
         marca: _marcaController.text.isEmpty ? null : _marcaController.text,
         unidadMedida: _unidadMedida,
-        iva: double.parse(_iva),
+        iva: double.tryParse(_ivaController.text) ?? 0.0,
       );
 
       await DatabaseHelper.instance.updateProducto(producto.toMap());
@@ -120,7 +151,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
       items: items.map((v) {
         return DropdownMenuItem(
           value: v,
-          child: Text(label == "IVA %" ? "$v%" : v),
+          child: Text(v),
         );
       }).toList(),
       onChanged: onChanged,
@@ -207,8 +238,8 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                     Expanded(
                       child: ProductoTextField(
                         controller: _pesoController,
-                        label: "Peso",
-                        icon: Icons.monitor_weight_outlined,
+                        label: _pesoLabel(),
+                        icon: _pesoIcon(),
                         keyboardType:
                             TextInputType.numberWithOptions(decimal: true),
                         validator: (value) =>
@@ -232,11 +263,12 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                     ),
                     SizedBox(width: 16),
                     Expanded(
-                      child: _buildDropdown(
-                        "IVA %", Icons.receipt_long_outlined,
-                        _iva, _ivas, (v) {
-                          if (v != null) setState(() => _iva = v);
-                        },
+                      child: ProductoTextField(
+                        controller: _ivaController,
+                        label: "IVA",
+                        icon: Icons.receipt_long_outlined,
+                        keyboardType: TextInputType.number,
+                        suffixText: "%",
                       ),
                     ),
                   ],

@@ -7,6 +7,7 @@ class ProductoTextField extends StatelessWidget {
   final TextInputType keyboardType;
   final String? Function(String?)? validator;
   final FocusNode? focusNode;
+  final String? suffixText;
 
   const ProductoTextField({
     super.key,
@@ -16,6 +17,7 @@ class ProductoTextField extends StatelessWidget {
     this.keyboardType = TextInputType.text,
     this.validator,
     this.focusNode,
+    this.suffixText,
   });
 
   @override
@@ -25,6 +27,7 @@ class ProductoTextField extends StatelessWidget {
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: Colors.black54),
+        suffixText: suffixText,
         filled: true,
         fillColor: Colors.grey.shade100,
         border: OutlineInputBorder(

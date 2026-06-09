@@ -22,10 +22,10 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
   final _marcaController = TextEditingController();
 
   String _unidadMedida = 'unidad';
-  String _iva = '0';
+  final _ivaController = TextEditingController();
 
   final _unidades = ['kg', 'g', 'lb', 'L', 'mL', 'unidad', 'paquete', 'caja'];
-  final _ivas = ['0', '5', '19'];
+
 
   @override
   void dispose() {
@@ -36,6 +36,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
     _pesoController.dispose();
     _stockController.dispose();
     _marcaController.dispose();
+    _ivaController.dispose();
     super.dispose();
   }
 
@@ -89,6 +90,36 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
     );
   }
 
+  String _pesoLabel() {
+    switch (_unidadMedida) {
+      case 'kg':
+        return 'Peso (kg)';
+      case 'g':
+        return 'Peso (g)';
+      case 'lb':
+        return 'Peso (lb)';
+      case 'L':
+        return 'Volumen (L)';
+      case 'mL':
+        return 'Volumen (mL)';
+      default:
+        return 'Cantidad';
+    }
+  }
+
+  IconData _pesoIcon() {
+    switch (_unidadMedida) {
+      case 'L':
+      case 'mL':
+        return Icons.water_drop_outlined;
+      case 'unidad':
+      case 'paquete':
+      case 'caja':
+        return Icons.inventory_2_outlined;
+      default:
+        return Icons.monitor_weight_outlined;
+    }
+  }
   Future<void> _saveProducto() async {
     if (_formKey.currentState!.validate()) {
       final producto = Producto(
@@ -100,7 +131,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
         stock: int.parse(_stockController.text),
         marca: _marcaController.text.isEmpty ? null : _marcaController.text,
         unidadMedida: _unidadMedida,
-        iva: double.parse(_iva),
+        iva: double.tryParse(_ivaController.text) ?? 0.0,
       );
 
       await DatabaseHelper.instance.addProducto(producto.toMap());
@@ -207,7 +238,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                           );
                         }).toList(),
                         onChanged: (v) {
-                          if (v != null) _unidadMedida = v;
+                          if (v != null) setState(() => _unidadMedida = v);
                         },
                       ),
                     ),
@@ -227,8 +258,8 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                     Expanded(
                       child: ProductoTextField(
                         controller: _pesoController,
-                        label: "Peso",
-                        icon: Icons.monitor_weight_outlined,
+                        label: _pesoLabel(),
+                        icon: _pesoIcon(),
                         keyboardType:
                             TextInputType.numberWithOptions(decimal: true),
                         validator: (value) =>
@@ -252,31 +283,12 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                     ),
                     SizedBox(width: 16),
                     Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _iva,
-                        decoration: InputDecoration(
-                          labelText: "IVA %",
-                          prefixIcon: Icon(Icons.receipt_long_outlined,
-                              color: Colors.black54),
-                          filled: true,
-                          fillColor: Colors.grey.shade100,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                              vertical: 16, horizontal: 16),
-                          labelStyle: TextStyle(color: Colors.black54),
-                        ),
-                        items: _ivas.map((v) {
-                          return DropdownMenuItem(
-                            value: v,
-                            child: Text('%'),
-                          );
-                        }).toList(),
-                        onChanged: (v) {
-                          if (v != null) _iva = v;
-                        },
+                      child: ProductoTextField(
+                        controller: _ivaController,
+                        label: "IVA",
+                        icon: Icons.receipt_long_outlined,
+                        keyboardType: TextInputType.number,
+                        suffixText: "%",
                       ),
                     ),
                   ],
