@@ -5,13 +5,16 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../services/database_helper.dart';
 import '../models/producto_model.dart';
+import '../screens/historial_ventas_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
 class Sidebar extends StatelessWidget {
   final Function onExportExcel;
+  final Function? onVenta;
 
-  const Sidebar({Key? key, required this.onExportExcel}) : super(key: key);
+  const Sidebar({Key? key, required this.onExportExcel, this.onVenta})
+      : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +64,52 @@ class Sidebar extends StatelessWidget {
                     ],
                   ),
                 ],
+              ),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.shopping_cart_outlined,
+                color: Colors.black87,
+              ),
+              title: Text(
+                'Nueva Venta',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                onVenta?.call();
+              },
+              trailing: Icon(
+                Icons.chevron_right,
+                color: Colors.black54,
+              ),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.receipt_long_outlined,
+                color: Colors.black87,
+              ),
+              title: Text(
+                'Historial de Ventas',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => HistorialVentasScreen()),
+                );
+              },
+              trailing: Icon(
+                Icons.chevron_right,
+                color: Colors.black54,
               ),
             ),
             ListTile(

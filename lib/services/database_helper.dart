@@ -1,6 +1,9 @@
 ﻿import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/producto_model.dart';
+import '../models/venta_model.dart';
+import '../models/venta_detalle.dart';
+import '../models/carrito_item.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -18,7 +21,7 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    return await openDatabase(path, version: 3, onCreate: _createDB, onUpgrade: _onUpgrade);
+    return await openDatabase(path, version: 4, onCreate: _createDB, onUpgrade: _onUpgrade);
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -36,6 +39,30 @@ class DatabaseHelper {
         iva REAL DEFAULT 0.0
       )
     ''');
+    await _createVentasTables(db);
+  }
+
+  Future<void> _createVentasTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE ventas(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        total REAL,
+        fecha TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE venta_detalles(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        venta_id INTEGER,
+        producto_id INTEGER,
+        nombre TEXT,
+        codigo TEXT,
+        precio_unitario REAL,
+        cantidad INTEGER,
+        subtotal REAL,
+        FOREIGN KEY (venta_id) REFERENCES ventas(id) ON DELETE CASCADE
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -43,6 +70,9 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE productos ADD COLUMN marca TEXT');
       await db.execute('ALTER TABLE productos ADD COLUMN unidad_medida TEXT');
       await db.execute('ALTER TABLE productos ADD COLUMN iva REAL DEFAULT 0.0');
+    }
+    if (oldVersion < 4) {
+      await _createVentasTables(db);
     }
   }
 
@@ -95,5 +125,43 @@ class DatabaseHelper {
       }
       return null;
     });
+  }
+
+  Future<void> addVenta(double total, List<CarritoItem> items) async {
+    final db = await database;
+    final fecha = DateTime.now().toIso8601String();
+
+    final ventaId = await db.insert('ventas', {
+      'total': total,
+      'fecha': fecha,
+    });
+
+    for (var item in items) {
+      await db.insert('venta_detalles', {
+        'venta_id': ventaId,
+        'producto_id': item.producto.id,
+        'nombre': item.producto.nombre,
+        'codigo': item.producto.codigo,
+        'precio_unitario': item.producto.precio,
+        'cantidad': item.cantidad,
+        'subtotal': item.subtotal,
+      });
+    }
+  }
+
+  Future<List<Venta>> getVentas() async {
+    final db = await database;
+    final result = await db.query('ventas', orderBy: 'fecha DESC');
+    return result.map((e) => Venta.fromMap(e)).toList();
+  }
+
+  Future<List<VentaDetalle>> getVentaDetalles(int ventaId) async {
+    final db = await database;
+    final result = await db.query(
+      'venta_detalles',
+      where: 'venta_id = ?',
+      whereArgs: [ventaId],
+    );
+    return result.map((e) => VentaDetalle.fromMap(e)).toList();
   }
 }

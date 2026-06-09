@@ -5,6 +5,7 @@ import '../models/producto_model.dart';
 import 'add_producto_screen.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
 import 'edit_producto_screen.dart';
+import 'venta_screen.dart';
 import '../widgets/sidebar.dart';
 import '../utils/formatters.dart';
 
@@ -74,7 +75,16 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      drawer: Sidebar(onExportExcel: exportToExcel),
+      drawer: Sidebar(
+        onExportExcel: exportToExcel,
+        onVenta: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => VentaScreen()),
+          );
+          _loadProductos();
+        },
+      ),
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
@@ -87,6 +97,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(
                     fontWeight: FontWeight.w300, color: Colors.black87),
               ),
+              actions: [
+                IconButton(
+                  icon: Icon(Icons.shopping_cart_outlined,
+                      color: Colors.black54),
+                  onPressed: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => VentaScreen()),
+                    );
+                    _loadProductos();
+                  },
+                ),
+              ],
               bottom: PreferredSize(
                 preferredSize: Size.fromHeight(80),
                 child: Padding(
