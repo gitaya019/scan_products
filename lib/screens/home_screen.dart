@@ -76,7 +76,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       drawer: Sidebar(
-        onExportExcel: exportToExcel,
         onVenta: () async {
           await Navigator.push(
             context,

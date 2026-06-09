@@ -1,20 +1,10 @@
-﻿import 'dart:typed_data';
-import 'package:flutter/material.dart';
-import 'package:excel/excel.dart';
-import 'package:path_provider/path_provider.dart';
-import 'dart:io';
-import '../services/database_helper.dart';
-import '../models/producto_model.dart';
+﻿import 'package:flutter/material.dart';
 import '../screens/historial_ventas_screen.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:share_plus/share_plus.dart';
 
 class Sidebar extends StatelessWidget {
-  final Function onExportExcel;
   final Function? onVenta;
 
-  const Sidebar({Key? key, required this.onExportExcel, this.onVenta})
-      : super(key: key);
+  const Sidebar({Key? key, this.onVenta}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -112,27 +102,6 @@ class Sidebar extends StatelessWidget {
                 color: Colors.black54,
               ),
             ),
-            ListTile(
-              leading: Icon(
-                Icons.import_export,
-                color: Colors.black87,
-              ),
-              title: Text(
-                'Exportar a Excel',
-                style: TextStyle(
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              onTap: () {
-                onExportExcel();
-                Navigator.pop(context);
-              },
-              trailing: Icon(
-                Icons.chevron_right,
-                color: Colors.black54,
-              ),
-            ),
             Divider(
               color: Colors.grey.shade300,
               indent: 16,
@@ -155,63 +124,4 @@ class Sidebar extends StatelessWidget {
       ),
     );
   }
-}
-
-Future<void> exportToExcel() async {
-  var status = await Permission.storage.status;
-  if (!status.isGranted) {
-    await Permission.storage.request();
-  }
-
-  final data = await DatabaseHelper.instance.getProductos();
-  List<Producto> productos = data.map((e) => Producto.fromMap(e)).toList();
-
-  var excel = Excel.createExcel();
-  var sheet = excel['Productos'];
-
-  sheet.appendRow([
-    TextCellValue('ID'),
-    TextCellValue('Nombre'),
-    TextCellValue('Código'),
-    TextCellValue('Categoría'),
-    TextCellValue('Marca'),
-    TextCellValue('Unidad'),
-    TextCellValue('Precio'),
-    TextCellValue('Peso'),
-    TextCellValue('IVA %'),
-    TextCellValue('Stock'),
-  ]);
-
-  for (var producto in productos) {
-    sheet.appendRow([
-      TextCellValue(producto.id.toString()),
-      TextCellValue(producto.nombre),
-      TextCellValue(producto.codigo),
-      TextCellValue(producto.categoria),
-      TextCellValue(producto.marca ?? ''),
-      TextCellValue(producto.unidadMedida ?? ''),
-      TextCellValue(producto.precio.toString()),
-      TextCellValue(producto.peso.toString()),
-      TextCellValue(producto.iva.toString()),
-      TextCellValue(producto.stock.toString()),
-    ]);
-  }
-
-  List<int>? excelBytesList = excel.encode();
-
-  if (excelBytesList == null) {
-    print('Error al generar el archivo Excel.');
-    return;
-  }
-
-  Uint8List excelBytes = Uint8List.fromList(excelBytesList);
-
-  final directory = await getApplicationDocumentsDirectory();
-  final filePath = '${directory.path}/productos.xlsx';
-  File(filePath).writeAsBytesSync(excelBytes);
-
-  print('Archivo Excel guardado en: $filePath');
-
-  await Share.shareXFiles([XFile(filePath)],
-      text: 'Aquí está el archivo Excel');
 }
