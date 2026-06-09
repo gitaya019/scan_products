@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
-import 'database_helper.dart';
-import 'producto_model.dart';
+import '../services/database_helper.dart';
+import '../models/producto_model.dart';
 import 'package:intl/intl.dart'; // Importar el paquete intl
 
 class AddProductoScreen extends StatefulWidget {

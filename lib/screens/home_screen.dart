@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'database_helper.dart';
-import 'producto_model.dart';
+import '../services/database_helper.dart';
+import '../models/producto_model.dart';
 import 'add_producto_screen.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
 import 'edit_producto_screen.dart';
 import 'package:intl/intl.dart'; // Importar el paquete intl
-import 'sidebar.dart';
+import '../widgets/sidebar.dart';
 
 class HomeScreen extends StatefulWidget {
   @override

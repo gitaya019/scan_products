@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:excel/excel.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
-import 'database_helper.dart';
-import 'producto_model.dart';
+import '../services/database_helper.dart';
+import '../models/producto_model.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 

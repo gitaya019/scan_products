@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'database_helper.dart';
-import 'producto_model.dart';
+import '../services/database_helper.dart';
+import '../models/producto_model.dart';
 import 'package:intl/intl.dart'; // Importar el paquete intl
 
 class EditProductoScreen extends StatefulWidget {
