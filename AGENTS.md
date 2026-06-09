@@ -5,7 +5,7 @@
 Flutter inventory app (Spanish). Scans barcodes, stores products in SQLite, exports to Excel.
 
 - **Entrypoint:** `lib/main.dart` → `MyApp` → `HomeScreen`
-- **Database:** SQLite via `sqflite`, single table `productos` (id, nombre, codigo, categoria, precio, peso, stock)
+- **Database:** SQLite via `sqflite`, single table `productos` (id, nombre, codigo, categoria, precio, peso, stock, marca, unidad_medida, iva). DB version 3; migration at `_onUpgrade` adds columns via ALTER TABLE.
 - **Orientation:** locked to portrait only
 - **App icon:** configured in `pubspec.yaml` under `flutter_icons:`; regenerate with `flutter pub run flutter_launcher_icons`
 - **Assets:** `assets/stock.png`, `assets/app_icon_foreground.png`
@@ -31,12 +31,15 @@ The existing `test/widget_test.dart` is a **default Flutter counter stub** — n
 ## Architecture
 
 - **`lib/main.dart`** — App root, portrait lock, Material 3 theme (light blue seed, light mode)
-- **`lib/home_screen.dart`** — Main screen: product list with search + barcode scan FAB + swipe-to-delete + drawer
-- **`lib/add_producto_screen.dart`** — Form to add product; scans barcode and detects duplicates
-- **`lib/edit_producto_screen.dart`** — Edit existing product
-- **`lib/producto_model.dart`** — `Producto` data class with `toMap()` / `fromMap()`
-- **`lib/database_helper.dart`** — Singleton `DatabaseHelper` (lazy-init, cached)
-- **`lib/sidebar.dart`** — Drawer menu + `exportToExcel()` standalone function
+- **`lib/screens/home_screen.dart`** — Main screen: product list with search + barcode scan FAB + swipe-to-delete + drawer
+- **`lib/screens/add_producto_screen.dart`** — Form to add product; scans barcode and detects duplicates; dropdowns for unidad_medida and IVA
+- **`lib/screens/edit_producto_screen.dart`** — Edit existing product + delete button
+- **`lib/models/producto_model.dart`** — `Producto` data class with `toMap()` / `fromMap()` (marca, unidadMedida, iva)
+- **`lib/services/database_helper.dart`** — Singleton `DatabaseHelper` (lazy-init, cached, DB v3)
+- **`lib/widgets/sidebar.dart`** — Drawer menu + `exportToExcel()` standalone function
+- **`lib/widgets/producto_text_field.dart`** — Reusable text field widget
+- **`lib/widgets/precio_field.dart`** — Price field with COP formatting on focus loss
+- **`lib/utils/formatters.dart`** — `formatCurrency()` / `parseCurrency()` for COP
 
 ## Conventions
 

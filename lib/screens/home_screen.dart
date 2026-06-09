@@ -226,7 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             title: Text(producto.nombre,
                                 style: TextStyle(fontWeight: FontWeight.w500)),
                             subtitle: Text(
-                              "Código: ${producto.codigo} | "
+                              "${producto.marca != null ? '${producto.marca} | ' : ''}Código: ${producto.codigo} | "
                               "\$ ${formatCurrency(producto.precio)} | Stock: ${producto.stock}",
                               style: TextStyle(color: Colors.black54),
                             ),

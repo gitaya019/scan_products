@@ -1,4 +1,4 @@
-class Producto {
+﻿class Producto {
   int? id;
   String nombre;
   String codigo;
@@ -6,6 +6,9 @@ class Producto {
   double precio;
   double peso;
   int stock;
+  String? marca;
+  String? unidadMedida;
+  double iva;
 
   Producto({
     this.id,
@@ -15,6 +18,9 @@ class Producto {
     required this.precio,
     required this.peso,
     this.stock = 0,
+    this.marca,
+    this.unidadMedida,
+    this.iva = 0.0,
   });
 
   Map<String, dynamic> toMap() {
@@ -26,6 +32,9 @@ class Producto {
       'precio': precio,
       'peso': peso,
       'stock': stock,
+      'marca': marca,
+      'unidad_medida': unidadMedida,
+      'iva': iva,
     };
   }
 
@@ -38,6 +47,9 @@ class Producto {
       precio: map['precio'],
       peso: map['peso'],
       stock: map['stock'],
+      marca: map['marca'],
+      unidadMedida: map['unidad_medida'],
+      iva: (map['iva'] ?? 0.0).toDouble(),
     );
   }
 }

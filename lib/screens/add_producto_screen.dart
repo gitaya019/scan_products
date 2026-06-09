@@ -19,6 +19,13 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
   final _precioController = TextEditingController();
   final _pesoController = TextEditingController();
   final _stockController = TextEditingController();
+  final _marcaController = TextEditingController();
+
+  String _unidadMedida = 'unidad';
+  String _iva = '0';
+
+  final _unidades = ['kg', 'g', 'lb', 'L', 'mL', 'unidad', 'paquete', 'caja'];
+  final _ivas = ['0', '5', '19'];
 
   @override
   void dispose() {
@@ -28,6 +35,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
     _precioController.dispose();
     _pesoController.dispose();
     _stockController.dispose();
+    _marcaController.dispose();
     super.dispose();
   }
 
@@ -90,6 +98,9 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
         precio: parseCurrency(_precioController.text),
         peso: double.parse(_pesoController.text),
         stock: int.parse(_stockController.text),
+        marca: _marcaController.text.isEmpty ? null : _marcaController.text,
+        unidadMedida: _unidadMedida,
+        iva: double.parse(_iva),
       );
 
       await DatabaseHelper.instance.addProducto(producto.toMap());
@@ -165,6 +176,47 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                 Row(
                   children: [
                     Expanded(
+                      child: ProductoTextField(
+                        controller: _marcaController,
+                        label: "Marca",
+                        icon: Icons.branding_watermark_outlined,
+                      ),
+                    ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _unidadMedida,
+                        decoration: InputDecoration(
+                          labelText: "Unidad",
+                          prefixIcon: Icon(Icons.scale_outlined,
+                              color: Colors.black54),
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                              vertical: 16, horizontal: 16),
+                          labelStyle: TextStyle(color: Colors.black54),
+                        ),
+                        items: _unidades.map((u) {
+                          return DropdownMenuItem(
+                            value: u,
+                            child: Text(u),
+                          );
+                        }).toList(),
+                        onChanged: (v) {
+                          if (v != null) _unidadMedida = v;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
                       child: PrecioField(
                         controller: _precioController,
                         validator: (value) =>
@@ -176,7 +228,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                       child: ProductoTextField(
                         controller: _pesoController,
                         label: "Peso",
-                        icon: Icons.scale_outlined,
+                        icon: Icons.monitor_weight_outlined,
                         keyboardType:
                             TextInputType.numberWithOptions(decimal: true),
                         validator: (value) =>
@@ -186,13 +238,48 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                   ],
                 ),
                 SizedBox(height: 16),
-                ProductoTextField(
-                  controller: _stockController,
-                  label: "Stock Inicial",
-                  icon: Icons.inventory,
-                  keyboardType: TextInputType.number,
-                  validator: (value) =>
-                      value!.isEmpty ? "Ingrese un stock inicial" : null,
+                Row(
+                  children: [
+                    Expanded(
+                      child: ProductoTextField(
+                        controller: _stockController,
+                        label: "Stock",
+                        icon: Icons.inventory,
+                        keyboardType: TextInputType.number,
+                        validator: (value) =>
+                            value!.isEmpty ? "Ingrese un stock" : null,
+                      ),
+                    ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _iva,
+                        decoration: InputDecoration(
+                          labelText: "IVA %",
+                          prefixIcon: Icon(Icons.receipt_long_outlined,
+                              color: Colors.black54),
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                              vertical: 16, horizontal: 16),
+                          labelStyle: TextStyle(color: Colors.black54),
+                        ),
+                        items: _ivas.map((v) {
+                          return DropdownMenuItem(
+                            value: v,
+                            child: Text('%'),
+                          );
+                        }).toList(),
+                        onChanged: (v) {
+                          if (v != null) _iva = v;
+                        },
+                      ),
+                    ),
+                  ],
                 ),
                 SizedBox(height: 32),
                 ElevatedButton(

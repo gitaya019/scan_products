@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+﻿import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:excel/excel.dart';
 import 'package:path_provider/path_provider.dart';
@@ -109,45 +109,45 @@ class Sidebar extends StatelessWidget {
 }
 
 Future<void> exportToExcel() async {
-  // Verificar permisos de almacenamiento
   var status = await Permission.storage.status;
   if (!status.isGranted) {
     await Permission.storage.request();
   }
 
-  // Obtener los productos de la base de datos
   final data = await DatabaseHelper.instance.getProductos();
   List<Producto> productos = data.map((e) => Producto.fromMap(e)).toList();
 
-  // Crear un nuevo archivo Excel
   var excel = Excel.createExcel();
   var sheet = excel['Productos'];
 
-  // Agregar encabezados con todos los campos
   sheet.appendRow([
     TextCellValue('ID'),
     TextCellValue('Nombre'),
     TextCellValue('Código'),
     TextCellValue('Categoría'),
+    TextCellValue('Marca'),
+    TextCellValue('Unidad'),
     TextCellValue('Precio'),
     TextCellValue('Peso'),
+    TextCellValue('IVA %'),
     TextCellValue('Stock'),
   ]);
 
-  // Agregar datos de los productos
   for (var producto in productos) {
     sheet.appendRow([
-      TextCellValue(producto.id.toString()), // ID
-      TextCellValue(producto.nombre), // Nombre
-      TextCellValue(producto.codigo), // Código
-      TextCellValue(producto.categoria), // Categoría
-      TextCellValue(producto.precio.toString()), // Precio
-      TextCellValue(producto.peso.toString()), // Peso
-      TextCellValue(producto.stock.toString()), // Stock
+      TextCellValue(producto.id.toString()),
+      TextCellValue(producto.nombre),
+      TextCellValue(producto.codigo),
+      TextCellValue(producto.categoria),
+      TextCellValue(producto.marca ?? ''),
+      TextCellValue(producto.unidadMedida ?? ''),
+      TextCellValue(producto.precio.toString()),
+      TextCellValue(producto.peso.toString()),
+      TextCellValue(producto.iva.toString()),
+      TextCellValue(producto.stock.toString()),
     ]);
   }
 
-  // Convertir el archivo Excel a bytes
   List<int>? excelBytesList = excel.encode();
 
   if (excelBytesList == null) {
@@ -155,17 +155,14 @@ Future<void> exportToExcel() async {
     return;
   }
 
-  // Convertir List<int> a Uint8List
   Uint8List excelBytes = Uint8List.fromList(excelBytesList);
 
-  // Guardar el archivo en el almacenamiento privado de la aplicación
   final directory = await getApplicationDocumentsDirectory();
   final filePath = '${directory.path}/productos.xlsx';
   File(filePath).writeAsBytesSync(excelBytes);
 
   print('Archivo Excel guardado en: $filePath');
 
-  // Compartir el archivo Excel
   await Share.shareXFiles([XFile(filePath)],
       text: 'Aquí está el archivo Excel');
 }

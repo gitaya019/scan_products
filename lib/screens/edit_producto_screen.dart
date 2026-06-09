@@ -22,6 +22,13 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
   final _precioController = TextEditingController();
   final _pesoController = TextEditingController();
   final _stockController = TextEditingController();
+  final _marcaController = TextEditingController();
+
+  late String _unidadMedida;
+  late String _iva;
+
+  final _unidades = ['kg', 'g', 'lb', 'L', 'mL', 'unidad', 'paquete', 'caja'];
+  final _ivas = ['0', '5', '19'];
 
   @override
   void initState() {
@@ -32,6 +39,9 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
     _precioController.text = formatCurrency(widget.producto.precio);
     _pesoController.text = widget.producto.peso.toString();
     _stockController.text = widget.producto.stock.toString();
+    _marcaController.text = widget.producto.marca ?? '';
+    _unidadMedida = widget.producto.unidadMedida ?? _unidades.first;
+    _iva = widget.producto.iva.toStringAsFixed(0);
   }
 
   @override
@@ -42,6 +52,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
     _precioController.dispose();
     _pesoController.dispose();
     _stockController.dispose();
+    _marcaController.dispose();
     super.dispose();
   }
 
@@ -55,6 +66,9 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
         precio: parseCurrency(_precioController.text),
         peso: double.parse(_pesoController.text),
         stock: int.parse(_stockController.text),
+        marca: _marcaController.text.isEmpty ? null : _marcaController.text,
+        unidadMedida: _unidadMedida,
+        iva: double.parse(_iva),
       );
 
       await DatabaseHelper.instance.updateProducto(producto.toMap());
@@ -85,6 +99,32 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
       await DatabaseHelper.instance.deleteProducto(widget.producto.id!);
       Navigator.pop(context);
     }
+  }
+
+  Widget _buildDropdown(String label, IconData icon, String value, List<String> items, ValueChanged<String?> onChanged) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: Colors.black54),
+        filled: true,
+        fillColor: Colors.grey.shade100,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        labelStyle: const TextStyle(color: Colors.black54),
+      ),
+      items: items.map((v) {
+        return DropdownMenuItem(
+          value: v,
+          child: Text(label == "IVA %" ? "$v%" : v),
+        );
+      }).toList(),
+      onChanged: onChanged,
+    );
   }
 
   @override
@@ -136,6 +176,27 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                 Row(
                   children: [
                     Expanded(
+                      child: ProductoTextField(
+                        controller: _marcaController,
+                        label: "Marca",
+                        icon: Icons.branding_watermark_outlined,
+                      ),
+                    ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: _buildDropdown(
+                        "Unidad", Icons.scale_outlined,
+                        _unidadMedida, _unidades, (v) {
+                          if (v != null) setState(() => _unidadMedida = v);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
                       child: PrecioField(
                         controller: _precioController,
                         validator: (value) =>
@@ -147,7 +208,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                       child: ProductoTextField(
                         controller: _pesoController,
                         label: "Peso",
-                        icon: Icons.scale_outlined,
+                        icon: Icons.monitor_weight_outlined,
                         keyboardType:
                             TextInputType.numberWithOptions(decimal: true),
                         validator: (value) =>
@@ -157,13 +218,28 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                   ],
                 ),
                 SizedBox(height: 16),
-                ProductoTextField(
-                  controller: _stockController,
-                  label: "Stock",
-                  icon: Icons.inventory,
-                  keyboardType: TextInputType.number,
-                  validator: (value) =>
-                      value!.isEmpty ? "Ingrese un stock" : null,
+                Row(
+                  children: [
+                    Expanded(
+                      child: ProductoTextField(
+                        controller: _stockController,
+                        label: "Stock",
+                        icon: Icons.inventory,
+                        keyboardType: TextInputType.number,
+                        validator: (value) =>
+                            value!.isEmpty ? "Ingrese un stock" : null,
+                      ),
+                    ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: _buildDropdown(
+                        "IVA %", Icons.receipt_long_outlined,
+                        _iva, _ivas, (v) {
+                          if (v != null) setState(() => _iva = v);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
                 SizedBox(height: 32),
                 ElevatedButton(

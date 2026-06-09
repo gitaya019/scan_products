@@ -1,4 +1,4 @@
-import 'package:sqflite/sqflite.dart';
+﻿import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/producto_model.dart';
 
@@ -18,7 +18,7 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    return await openDatabase(path, version: 2, onCreate: _createDB);
+    return await openDatabase(path, version: 3, onCreate: _createDB, onUpgrade: _onUpgrade);
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -30,9 +30,20 @@ class DatabaseHelper {
         categoria TEXT,
         precio REAL,
         peso REAL,
-        stock INTEGER DEFAULT 0
+        stock INTEGER DEFAULT 0,
+        marca TEXT,
+        unidad_medida TEXT,
+        iva REAL DEFAULT 0.0
       )
     ''');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 3) {
+      await db.execute('ALTER TABLE productos ADD COLUMN marca TEXT');
+      await db.execute('ALTER TABLE productos ADD COLUMN unidad_medida TEXT');
+      await db.execute('ALTER TABLE productos ADD COLUMN iva REAL DEFAULT 0.0');
+    }
   }
 
   Future<int> addProducto(Map<String, dynamic> producto) async {
@@ -74,14 +85,15 @@ class DatabaseHelper {
 
   Future<Producto?> getProductoByCodigo(String codigo) async {
     final db = await database;
-    final result = await db.query(
+    return await db.query(
       'productos',
       where: 'codigo = ?',
       whereArgs: [codigo],
-    );
-    if (result.isNotEmpty) {
-      return Producto.fromMap(result.first);
-    }
-    return null;
+    ).then((result) {
+      if (result.isNotEmpty) {
+        return Producto.fromMap(result.first);
+      }
+      return null;
+    });
   }
 }
