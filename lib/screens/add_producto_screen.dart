@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
 import '../services/database_helper.dart';
 import '../models/producto_model.dart';
-import 'package:intl/intl.dart'; // Importar el paquete intl
+import '../widgets/producto_text_field.dart';
+import '../widgets/precio_field.dart';
+import '../utils/formatters.dart';
 
 class AddProductoScreen extends StatefulWidget {
   @override
@@ -17,46 +19,15 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
   final _precioController = TextEditingController();
   final _pesoController = TextEditingController();
   final _stockController = TextEditingController();
-  final FocusNode _precioFocusNode =
-      FocusNode(); // FocusNode para el campo de precio
-
-  // Función para formatear el valor como moneda COP
-  String _formatCurrency(double value) {
-    final format =
-        NumberFormat.currency(locale: 'es_CO', symbol: '', decimalDigits: 0);
-    return format.format(value);
-  }
-
-  // Función para desformatear el valor de moneda COP a double
-  double _parseCurrency(String value) {
-    final cleanedValue = value.replaceAll(RegExp(r'[^0-9]'), '');
-    return double.tryParse(cleanedValue) ?? 0.0;
-  }
-
-  // Función para formatear el precio cuando el campo pierde el foco
-  void _formatPrecioOnUnfocus() {
-    final doubleValue = _parseCurrency(_precioController.text);
-    _precioController.value = TextEditingValue(
-      text: _formatCurrency(doubleValue),
-      selection:
-          TextSelection.collapsed(offset: _formatCurrency(doubleValue).length),
-    );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _precioFocusNode.addListener(() {
-      if (!_precioFocusNode.hasFocus) {
-        _formatPrecioOnUnfocus(); // Formatear el precio cuando el campo pierde el foco
-      }
-    });
-  }
 
   @override
   void dispose() {
-    _precioFocusNode.dispose(); // Liberar el FocusNode
+    _nombreController.dispose();
+    _codigoController.dispose();
+    _categoriaController.dispose();
     _precioController.dispose();
+    _pesoController.dispose();
+    _stockController.dispose();
     super.dispose();
   }
 
@@ -66,7 +37,6 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
       _codigoController.text = result.rawContent;
     });
 
-    // Verificar si el producto ya existe
     final productoExistente =
         await DatabaseHelper.instance.getProductoByCodigo(result.rawContent);
     if (productoExistente != null) {
@@ -100,8 +70,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                   await DatabaseHelper.instance
                       .updateStock(producto.codigo, cantidad);
                   Navigator.pop(context);
-                  Navigator.pop(
-                      context); // Cerrar la pantalla de agregar producto
+                  Navigator.pop(context);
                 }
               },
               child: Text("Agregar"),
@@ -118,8 +87,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
         nombre: _nombreController.text,
         codigo: _codigoController.text,
         categoria: _categoriaController.text,
-        precio:
-            _parseCurrency(_precioController.text), // Desformatear el precio
+        precio: parseCurrency(_precioController.text),
         peso: double.parse(_pesoController.text),
         stock: int.parse(_stockController.text),
       );
@@ -151,7 +119,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildTextField(
+                ProductoTextField(
                   controller: _nombreController,
                   label: "Nombre del Producto",
                   icon: Icons.shopping_basket_outlined,
@@ -163,7 +131,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: _buildTextField(
+                      child: ProductoTextField(
                         controller: _codigoController,
                         label: "Código de Barras",
                         icon: Icons.barcode_reader,
@@ -186,7 +154,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                   ],
                 ),
                 SizedBox(height: 16),
-                _buildTextField(
+                ProductoTextField(
                   controller: _categoriaController,
                   label: "Categoría",
                   icon: Icons.category_outlined,
@@ -197,19 +165,15 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildTextField(
+                      child: PrecioField(
                         controller: _precioController,
-                        label: "Precio",
-                        icon: Icons.attach_money_outlined,
-                        keyboardType: TextInputType.number,
                         validator: (value) =>
                             value!.isEmpty ? "Ingrese un precio" : null,
-                        focusNode: _precioFocusNode, // Asignar el FocusNode
                       ),
                     ),
                     SizedBox(width: 16),
                     Expanded(
-                      child: _buildTextField(
+                      child: ProductoTextField(
                         controller: _pesoController,
                         label: "Peso",
                         icon: Icons.scale_outlined,
@@ -222,7 +186,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                   ],
                 ),
                 SizedBox(height: 16),
-                _buildTextField(
+                ProductoTextField(
                   controller: _stockController,
                   label: "Stock Inicial",
                   icon: Icons.inventory,
@@ -254,34 +218,6 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    String? Function(String?)? validator,
-    FocusNode? focusNode, // Parámetro opcional para el FocusNode
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: Colors.black54),
-        filled: true,
-        fillColor: Colors.grey.shade100,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        labelStyle: TextStyle(color: Colors.black54),
-      ),
-      keyboardType: keyboardType,
-      validator: validator,
-      focusNode: focusNode, // Asignar el FocusNode
     );
   }
 }

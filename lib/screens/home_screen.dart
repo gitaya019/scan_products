@@ -1,12 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../services/database_helper.dart';
 import '../models/producto_model.dart';
 import 'add_producto_screen.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
 import 'edit_producto_screen.dart';
-import 'package:intl/intl.dart'; // Importar el paquete intl
 import '../widgets/sidebar.dart';
+import '../utils/formatters.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -18,13 +18,6 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Producto> productosFiltrados = [];
   final _searchController = TextEditingController();
   bool _isSearching = false;
-
-  // Función para formatear el valor como moneda COP
-  String _formatCurrency(double value) {
-    final format =
-        NumberFormat.currency(locale: 'es_CO', symbol: '', decimalDigits: 0);
-    return format.format(value);
-  }
 
   Future<void> _loadProductos() async {
     final data = await DatabaseHelper.instance.getProductos();
@@ -65,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _deleteProducto(int id) async {
     await DatabaseHelper.instance.deleteProducto(id);
-    _loadProductos(); // Recargar la lista después de eliminar
+    _loadProductos();
   }
 
   @override
@@ -81,7 +74,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      drawer: Sidebar(onExportExcel: exportToExcel), // Agregar el Sidebar
+      drawer: Sidebar(onExportExcel: exportToExcel),
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
@@ -178,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     final producto = productosFiltrados[index];
                     return Dismissible(
                       key: Key(producto.id?.toString() ??
-                          'default_key'), // Handle nullable id
+                          'default_key'),
                       direction: DismissDirection.startToEnd,
                       background: Container(
                         color: Colors.red,
@@ -219,7 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                       onDismissed: (direction) {
-                        _deleteProducto(producto.id!); // Ensure id is non-null
+                        _deleteProducto(producto.id!);
                       },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -233,7 +226,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             title: Text(producto.nombre,
                                 style: TextStyle(fontWeight: FontWeight.w500)),
                             subtitle: Text(
-                              "Código: ${producto.codigo} | \$ ${_formatCurrency(producto.precio)} | Stock: ${producto.stock}",
+                              "Código: ${producto.codigo} | "
+                              "\$ ${formatCurrency(producto.precio)} | Stock: ${producto.stock}",
                               style: TextStyle(color: Colors.black54),
                             ),
                             trailing: Icon(Icons.chevron_right,

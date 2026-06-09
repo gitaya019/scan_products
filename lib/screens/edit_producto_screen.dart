@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../services/database_helper.dart';
 import '../models/producto_model.dart';
-import 'package:intl/intl.dart'; // Importar el paquete intl
+import '../widgets/producto_text_field.dart';
+import '../widgets/precio_field.dart';
+import '../utils/formatters.dart';
 
 class EditProductoScreen extends StatefulWidget {
   final Producto producto;
@@ -20,52 +22,26 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
   final _precioController = TextEditingController();
   final _pesoController = TextEditingController();
   final _stockController = TextEditingController();
-  final FocusNode _precioFocusNode = FocusNode(); // FocusNode para el campo de precio
-
-  // Función para formatear el valor como moneda COP
-  String _formatCurrency(double value) {
-    final format = NumberFormat.currency(locale: 'es_CO', symbol: '', decimalDigits: 0);
-    return format.format(value);
-  }
-
-  // Función para desformatear el valor de moneda COP a double
-  double _parseCurrency(String value) {
-    final cleanedValue = value.replaceAll(RegExp(r'[^0-9]'), '');
-    return double.tryParse(cleanedValue) ?? 0.0;
-  }
-
-  // Función para formatear el precio cuando el campo pierde el foco
-  void _formatPrecioOnUnfocus() {
-    final doubleValue = _parseCurrency(_precioController.text);
-    _precioController.value = TextEditingValue(
-      text: _formatCurrency(doubleValue),
-      selection: TextSelection.collapsed(offset: _formatCurrency(doubleValue).length),
-    );
-  }
 
   @override
   void initState() {
     super.initState();
-    // Inicializa los controladores con los datos del producto
     _nombreController.text = widget.producto.nombre;
     _codigoController.text = widget.producto.codigo;
     _categoriaController.text = widget.producto.categoria;
-    _precioController.text = _formatCurrency(widget.producto.precio); // Formatear el precio inicial
+    _precioController.text = formatCurrency(widget.producto.precio);
     _pesoController.text = widget.producto.peso.toString();
     _stockController.text = widget.producto.stock.toString();
-
-    // Listener para formatear el precio cuando el campo pierde el foco
-    _precioFocusNode.addListener(() {
-      if (!_precioFocusNode.hasFocus) {
-        _formatPrecioOnUnfocus();
-      }
-    });
   }
 
   @override
   void dispose() {
-    _precioFocusNode.dispose(); // Liberar el FocusNode
+    _nombreController.dispose();
+    _codigoController.dispose();
+    _categoriaController.dispose();
     _precioController.dispose();
+    _pesoController.dispose();
+    _stockController.dispose();
     super.dispose();
   }
 
@@ -76,12 +52,37 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
         nombre: _nombreController.text,
         codigo: _codigoController.text,
         categoria: _categoriaController.text,
-        precio: _parseCurrency(_precioController.text), // Desformatear el precio
+        precio: parseCurrency(_precioController.text),
         peso: double.parse(_pesoController.text),
         stock: int.parse(_stockController.text),
       );
 
       await DatabaseHelper.instance.updateProducto(producto.toMap());
+      Navigator.pop(context);
+    }
+  }
+
+  Future<void> _deleteProducto() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Eliminar Producto"),
+        content: const Text("¿Estás seguro de que deseas eliminar este producto?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text("Cancelar", style: TextStyle(color: Colors.green)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text("Eliminar", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && widget.producto.id != null) {
+      await DatabaseHelper.instance.deleteProducto(widget.producto.id!);
       Navigator.pop(context);
     }
   }
@@ -108,7 +109,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildTextField(
+                ProductoTextField(
                   controller: _nombreController,
                   label: "Nombre del Producto",
                   icon: Icons.shopping_basket_outlined,
@@ -116,7 +117,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                       value!.isEmpty ? "Ingrese un nombre" : null,
                 ),
                 SizedBox(height: 16),
-                _buildTextField(
+                ProductoTextField(
                   controller: _codigoController,
                   label: "Código de Barras",
                   icon: Icons.barcode_reader,
@@ -124,7 +125,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                       value!.isEmpty ? "Ingrese un código" : null,
                 ),
                 SizedBox(height: 16),
-                _buildTextField(
+                ProductoTextField(
                   controller: _categoriaController,
                   label: "Categoría",
                   icon: Icons.category_outlined,
@@ -135,19 +136,15 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildTextField(
+                      child: PrecioField(
                         controller: _precioController,
-                        label: "Precio",
-                        icon: Icons.attach_money_outlined,
-                        keyboardType: TextInputType.number,
                         validator: (value) =>
                             value!.isEmpty ? "Ingrese un precio" : null,
-                        focusNode: _precioFocusNode, // Asignar el FocusNode
                       ),
                     ),
                     SizedBox(width: 16),
                     Expanded(
-                      child: _buildTextField(
+                      child: ProductoTextField(
                         controller: _pesoController,
                         label: "Peso",
                         icon: Icons.scale_outlined,
@@ -160,7 +157,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                   ],
                 ),
                 SizedBox(height: 16),
-                _buildTextField(
+                ProductoTextField(
                   controller: _stockController,
                   label: "Stock",
                   icon: Icons.inventory,
@@ -187,39 +184,30 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                         color: Colors.white),
                   ),
                 ),
+                SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: _deleteProducto,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    "Eliminar Producto",
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w300,
+                        color: Colors.white),
+                  ),
+                ),
               ],
             ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    String? Function(String?)? validator,
-    FocusNode? focusNode, // Parámetro opcional para el FocusNode
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: Colors.black54),
-        filled: true,
-        fillColor: Colors.grey.shade100,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        labelStyle: TextStyle(color: Colors.black54),
-      ),
-      keyboardType: keyboardType,
-      validator: validator,
-      focusNode: focusNode, // Asignar el FocusNode
     );
   }
 }
