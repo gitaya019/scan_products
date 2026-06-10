@@ -218,10 +218,8 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                 SizedBox(height: 14),
                 ProductoTextField(
                   controller: _codigoController,
-                  label: "Código de Barras",
+                  label: "Código de Barras (opcional)",
                   icon: Icons.barcode_reader,
-                  validator: (value) =>
-                      value!.isEmpty ? "Ingrese un código" : null,
                 ),
                 SizedBox(height: 14),
                 ProductoTextField(

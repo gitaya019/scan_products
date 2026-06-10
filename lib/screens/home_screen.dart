@@ -85,11 +85,11 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 8),
             TextField(
               controller: controller,
-              decoration: const InputDecoration(
-                labelText: "Cantidad a agregar",
+              decoration: InputDecoration(
+                labelText: _stockLabel(producto),
                 border: OutlineInputBorder(),
               ),
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
+              keyboardType: TextInputType.numberWithOptions(decimal: producto.ventaPorPeso),
               autofocus: true,
             ),
           ],
@@ -114,6 +114,14 @@ class _HomeScreenState extends State<HomeScreen> {
       await DatabaseHelper.instance.updateStock(producto.codigo, cantidad, id: producto.id);
       _loadProductos();
     }
+  }
+
+  String _stockLabel(Producto p) {
+    if (p.ventaPorPeso) {
+      final unidad = p.unidadMedida ?? '';
+      return 'Cantidad ($unidad)';
+    }
+    return 'Cantidad (unidades)';
   }
 
   String _formatearStock(Producto p) {
