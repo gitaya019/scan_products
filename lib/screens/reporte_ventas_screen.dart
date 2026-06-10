@@ -28,8 +28,9 @@ class _ReporteVentasScreenState extends State<ReporteVentasScreen> {
 
   Widget _tarjeta(String titulo, String subtitulo, IconData icono, Color color) {
     return Card(
-      elevation: 0,
-      color: Colors.grey.shade100,
+      elevation: 2,
+      color: Colors.white,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: ListTile(

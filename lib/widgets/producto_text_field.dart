@@ -29,14 +29,26 @@ class ProductoTextField extends StatelessWidget {
         prefixIcon: Icon(icon, color: Colors.black54),
         suffixText: suffixText,
         filled: true,
-        fillColor: Colors.grey.shade100,
+        fillColor: Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+              color: Theme.of(context).colorScheme.primary, width: 1.5),
         ),
         contentPadding:
             const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         labelStyle: const TextStyle(color: Colors.black54),
+        floatingLabelStyle: TextStyle(
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.w500),
       ),
       keyboardType: keyboardType,
       validator: validator,

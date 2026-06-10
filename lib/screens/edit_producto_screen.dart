@@ -134,6 +134,18 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
     }
   }
 
+  Widget _seccionHeader(String titulo) {
+    return Text(
+      titulo,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: Theme.of(context).colorScheme.primary,
+        letterSpacing: 0.5,
+      ),
+    );
+  }
+
   Widget _buildDropdown(String label, IconData icon, String value, List<String> items, ValueChanged<String?> onChanged) {
     return DropdownButtonFormField<String>(
       value: value,
@@ -141,10 +153,14 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
         labelText: label,
         prefixIcon: Icon(icon, color: Colors.black54),
         filled: true,
-        fillColor: Colors.grey.shade100,
+        fillColor: Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
         contentPadding:
             const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
@@ -176,12 +192,14 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
       ),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _seccionHeader("Información del Producto"),
+                SizedBox(height: 12),
                 ProductoTextField(
                   controller: _nombreController,
                   label: "Nombre del Producto",
@@ -189,7 +207,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                   validator: (value) =>
                       value!.isEmpty ? "Ingrese un nombre" : null,
                 ),
-                SizedBox(height: 16),
+                SizedBox(height: 14),
                 ProductoTextField(
                   controller: _codigoController,
                   label: "Código de Barras",
@@ -197,7 +215,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                   validator: (value) =>
                       value!.isEmpty ? "Ingrese un código" : null,
                 ),
-                SizedBox(height: 16),
+                SizedBox(height: 14),
                 ProductoTextField(
                   controller: _categoriaController,
                   label: "Categoría",
@@ -205,7 +223,9 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                   validator: (value) =>
                       value!.isEmpty ? "Ingrese una categoría" : null,
                 ),
-                SizedBox(height: 16),
+                SizedBox(height: 24),
+                _seccionHeader("Detalles del Producto"),
+                SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -215,7 +235,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                         icon: Icons.branding_watermark_outlined,
                       ),
                     ),
-                    SizedBox(width: 16),
+                    SizedBox(width: 14),
                     Expanded(
                       child: _buildDropdown(
                         "Unidad", Icons.scale_outlined,
@@ -226,7 +246,9 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                     ),
                   ],
                 ),
-                SizedBox(height: 16),
+                SizedBox(height: 24),
+                _seccionHeader("Precio y Stock"),
+                SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -236,7 +258,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                             value!.isEmpty ? "Ingrese un precio" : null,
                       ),
                     ),
-                    SizedBox(width: 16),
+                    SizedBox(width: 14),
                     Expanded(
                       child: ProductoTextField(
                         controller: _pesoController,
@@ -250,7 +272,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                     ),
                   ],
                 ),
-                SizedBox(height: 16),
+                SizedBox(height: 14),
                 Row(
                   children: [
                     Expanded(
@@ -263,7 +285,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                             value!.isEmpty ? "Ingrese un stock" : null,
                       ),
                     ),
-                    SizedBox(width: 16),
+                    SizedBox(width: 14),
                     Expanded(
                       child: ProductoTextField(
                         controller: _ivaController,
@@ -279,26 +301,27 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                 ElevatedButton(
                   onPressed: _updateProducto,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black87,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
                     padding: EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    elevation: 0,
+                    elevation: 2,
                   ),
                   child: Text(
                     "Guardar Cambios",
                     style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w300,
-                        color: Colors.white),
+                        fontWeight: FontWeight.w500),
                   ),
                 ),
                 SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: _deleteProducto,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
+                    backgroundColor: Colors.red.shade500,
+                    foregroundColor: Colors.white,
                     padding: EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -309,8 +332,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                     "Eliminar Producto",
                     style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w300,
-                        color: Colors.white),
+                        fontWeight: FontWeight.w500),
                   ),
                 ),
               ],

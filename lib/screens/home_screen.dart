@@ -40,8 +40,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
       productosFiltrados = productos.where((p) {
         final coincideBusqueda = _searchController.text.isEmpty ||
-            p.nombre.toLowerCase().contains(_searchController.text.toLowerCase()) ||
-            p.codigo.toLowerCase().contains(_searchController.text.toLowerCase());
+            p.nombre
+                .toLowerCase()
+                .contains(_searchController.text.toLowerCase()) ||
+            p.codigo
+                .toLowerCase()
+                .contains(_searchController.text.toLowerCase());
         final coincideStock = !_stockBajoActivo || p.stock <= _umbralStockBajo;
         return coincideBusqueda && coincideStock;
       }).toList();
@@ -93,8 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancelar",
-                style: TextStyle(color: Colors.grey)),
+            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
             onPressed: () {
@@ -152,13 +155,12 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               actions: [
                 IconButton(
-                  icon: Icon(Icons.shopping_cart_outlined,
-                      color: Colors.black54),
+                  icon:
+                      Icon(Icons.shopping_cart_outlined, color: Colors.black54),
                   onPressed: () async {
                     await Navigator.push(
                       context,
-                      MaterialPageRoute(
-                          builder: (_) => VentaScreen()),
+                      MaterialPageRoute(builder: (_) => VentaScreen()),
                     );
                     _loadProductos();
                   },
@@ -174,8 +176,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       Expanded(
                         child: Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                           child: TextField(
                             controller: _searchController,
@@ -193,7 +202,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                       },
                                     )
                                   : null,
-                              border: InputBorder.none,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide.none,
+                              ),
                               contentPadding: EdgeInsets.symmetric(
                                   vertical: 15, horizontal: 15),
                             ),
@@ -212,9 +224,16 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Container(
                           decoration: BoxDecoration(
                             color: _stockBajoActivo
-                                ? Colors.orange.shade100
-                                : Colors.black12,
-                            borderRadius: BorderRadius.circular(10),
+                                ? Colors.orange.shade50
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                           child: IconButton(
                             icon: Icon(
@@ -231,8 +250,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       SizedBox(width: 8),
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.black12,
-                          borderRadius: BorderRadius.circular(10),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: IconButton(
                           icon: Icon(Icons.qr_code_scanner,
@@ -277,8 +303,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   (context, index) {
                     final producto = productosFiltrados[index];
                     return Dismissible(
-                      key: Key(producto.id?.toString() ??
-                          'default_key'),
+                      key: Key(producto.id?.toString() ?? 'default_key'),
                       direction: DismissDirection.startToEnd,
                       background: Container(
                         color: Colors.red,
@@ -326,18 +351,25 @@ class _HomeScreenState extends State<HomeScreen> {
                             horizontal: 16.0, vertical: 8),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                           child: ListTile(
                             title: Text(producto.nombre,
-                                style: TextStyle(fontWeight: FontWeight.w500)),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600, fontSize: 15)),
                             subtitle: producto.stock <= _umbralStockBajo
                                 ? Row(
                                     children: [
                                       Icon(Icons.warning_amber_rounded,
-                                          size: 16,
-                                          color: Colors.red.shade600),
+                                          size: 16, color: Colors.red.shade600),
                                       SizedBox(width: 4),
                                       Text(
                                         "${producto.marca != null ? '${producto.marca} | ' : ''}"
@@ -366,11 +398,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               children: [
                                 IconButton(
                                   icon: Icon(Icons.add_circle_outline,
-                                      size: 20,
-                                      color: Colors.green.shade600),
+                                      size: 20, color: Colors.green.shade600),
                                   onPressed: () =>
-                                      _mostrarDialogoAgregarStock(
-                                          producto),
+                                      _mostrarDialogoAgregarStock(producto),
                                   tooltip: "Agregar stock",
                                 ),
                                 Icon(Icons.chevron_right,
@@ -399,11 +429,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.black87,
+        backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
+        elevation: 4,
         onPressed: () async {
           await Navigator.push(context,
               MaterialPageRoute(builder: (context) => AddProductoScreen()));

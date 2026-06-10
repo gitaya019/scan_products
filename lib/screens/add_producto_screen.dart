@@ -120,6 +120,18 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
         return Icons.monitor_weight_outlined;
     }
   }
+  Widget _seccionHeader(String titulo) {
+    return Text(
+      titulo,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: Theme.of(context).colorScheme.primary,
+        letterSpacing: 0.5,
+      ),
+    );
+  }
+
   Future<void> _saveProducto() async {
     if (_formKey.currentState!.validate()) {
       final producto = Producto(
@@ -155,12 +167,14 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
       ),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _seccionHeader("Información del Producto"),
+                SizedBox(height: 12),
                 ProductoTextField(
                   controller: _nombreController,
                   label: "Nombre del Producto",
@@ -168,7 +182,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                   validator: (value) =>
                       value!.isEmpty ? "Ingrese un nombre" : null,
                 ),
-                SizedBox(height: 16),
+                SizedBox(height: 14),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -181,11 +195,18 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                             value!.isEmpty ? "Ingrese un código" : null,
                       ),
                     ),
-                    SizedBox(width: 12),
+                    SizedBox(width: 10),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.black12,
-                        borderRadius: BorderRadius.circular(10),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: IconButton(
                         icon: Icon(Icons.camera_alt_outlined,
@@ -195,7 +216,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                     ),
                   ],
                 ),
-                SizedBox(height: 16),
+                SizedBox(height: 14),
                 ProductoTextField(
                   controller: _categoriaController,
                   label: "Categoría",
@@ -203,7 +224,9 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                   validator: (value) =>
                       value!.isEmpty ? "Ingrese una categoría" : null,
                 ),
-                SizedBox(height: 16),
+                SizedBox(height: 24),
+                _seccionHeader("Detalles del Producto"),
+                SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -213,7 +236,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                         icon: Icons.branding_watermark_outlined,
                       ),
                     ),
-                    SizedBox(width: 16),
+                    SizedBox(width: 14),
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         value: _unidadMedida,
@@ -222,10 +245,14 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                           prefixIcon: Icon(Icons.scale_outlined,
                               color: Colors.black54),
                           filled: true,
-                          fillColor: Colors.grey.shade100,
+                          fillColor: Colors.white,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
+                            borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
                           ),
                           contentPadding: EdgeInsets.symmetric(
                               vertical: 16, horizontal: 16),
@@ -244,7 +271,9 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                     ),
                   ],
                 ),
-                SizedBox(height: 16),
+                SizedBox(height: 24),
+                _seccionHeader("Precio y Stock"),
+                SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -254,7 +283,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                             value!.isEmpty ? "Ingrese un precio" : null,
                       ),
                     ),
-                    SizedBox(width: 16),
+                    SizedBox(width: 14),
                     Expanded(
                       child: ProductoTextField(
                         controller: _pesoController,
@@ -268,7 +297,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                     ),
                   ],
                 ),
-                SizedBox(height: 16),
+                SizedBox(height: 14),
                 Row(
                   children: [
                     Expanded(
@@ -281,7 +310,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                             value!.isEmpty ? "Ingrese un stock" : null,
                       ),
                     ),
-                    SizedBox(width: 16),
+                    SizedBox(width: 14),
                     Expanded(
                       child: ProductoTextField(
                         controller: _ivaController,
@@ -297,19 +326,19 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                 ElevatedButton(
                   onPressed: _saveProducto,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black87,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
                     padding: EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    elevation: 0,
+                    elevation: 2,
                   ),
                   child: Text(
                     "Guardar Producto",
                     style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w300,
-                        color: Colors.white),
+                        fontWeight: FontWeight.w500),
                   ),
                 ),
               ],

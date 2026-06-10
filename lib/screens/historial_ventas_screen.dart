@@ -104,12 +104,12 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(context),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black87,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        elevation: 0,
+                        elevation: 2,
                       ),
                       child: Text("Cerrar"),
                     ),
@@ -211,10 +211,11 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
                       final venta = _ventas[index];
                       final anulada = venta.estado == 'anulada';
                       return Card(
-                        elevation: 0,
+                        elevation: anulada ? 0 : 2,
                         color: anulada
-                            ? Colors.grey.shade200
-                            : Colors.grey.shade100,
+                            ? Colors.grey.shade100
+                            : Colors.white,
+                        shadowColor: Colors.black.withValues(alpha: 0.05),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),

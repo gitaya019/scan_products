@@ -228,12 +228,12 @@ class _VentaScreenState extends State<VentaScreen> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w300),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black87,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  elevation: 0,
+                  elevation: 2,
                 ),
               ),
             ),
@@ -266,8 +266,9 @@ class _VentaScreenState extends State<VentaScreen> {
                     itemBuilder: (context, index) {
                       final item = _items[index];
                       return Card(
-                        elevation: 0,
-                        color: Colors.grey.shade100,
+                        elevation: 2,
+                        color: Colors.white,
+                        shadowColor: Colors.black.withValues(alpha: 0.05),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -374,14 +375,14 @@ class _VentaScreenState extends State<VentaScreen> {
                     ElevatedButton(
                       onPressed: _finalizarVenta,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                             horizontal: 32, vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        elevation: 0,
+                        elevation: 2,
                       ),
                       child: const Text(
                         "Finalizar Venta",
