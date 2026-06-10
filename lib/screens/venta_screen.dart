@@ -154,7 +154,7 @@ class _VentaScreenState extends State<VentaScreen> {
 
     await DatabaseHelper.instance.addVenta(_total, _items);
 
-    final cantidadItems = _items.length;
+    final itemsSnapshot = List<CarritoItem>.from(_items);
     final total = _total;
 
     if (mounted) {
@@ -167,10 +167,34 @@ class _VentaScreenState extends State<VentaScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Productos vendidos: $cantidadItems"),
-                Text("Total: \$${formatCurrency(total)}"),
-                SizedBox(height: 8),
-                Text("Stock actualizado correctamente."),
+                ...itemsSnapshot.map((item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(item.producto.nombre,
+                                style: const TextStyle(fontWeight: FontWeight.w500)),
+                          ),
+                          Text(
+                            "${_formatearCantidad(item)} x \$${formatCurrency(item.producto.precio)}",
+                            style: const TextStyle(color: Colors.black54, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    )),
+                const Divider(thickness: 1),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Total",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text("\$${formatCurrency(total)}",
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text("Stock actualizado correctamente.",
+                    style: TextStyle(color: Colors.black54, fontSize: 13)),
               ],
             ),
             actions: [

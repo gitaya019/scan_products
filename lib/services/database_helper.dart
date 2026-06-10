@@ -22,7 +22,7 @@ class DatabaseHelper {
     final path = join(dbPath, filePath);
 
     return await openDatabase(
-        path, version: 5, onCreate: _createDB, onUpgrade: _onUpgrade);
+        path, version: 6, onCreate: _createDB, onUpgrade: _onUpgrade);
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -79,6 +79,10 @@ class DatabaseHelper {
     if (oldVersion < 5) {
       await db.execute(
           "ALTER TABLE ventas ADD COLUMN estado TEXT DEFAULT 'completada'");
+    }
+    if (oldVersion < 6) {
+      await db.execute(
+          "ALTER TABLE venta_detalles ADD COLUMN unidad_medida TEXT");
     }
   }
 
@@ -152,6 +156,7 @@ class DatabaseHelper {
         'precio_unitario': item.producto.precio,
         'cantidad': item.cantidad,
         'subtotal': item.subtotal,
+        'unidad_medida': item.producto.unidadMedida,
       });
     }
   }
@@ -212,15 +217,24 @@ class DatabaseHelper {
 
     for (final entry in periodos) {
       final inicio = entry['inicio'] as DateTime;
-      final result = await db.rawQuery('''
-        SELECT COUNT(*) as cantidad, COALESCE(SUM(total), 0) as total
+      final iso = inicio.toIso8601String();
+
+      final resultVentas = await db.rawQuery('''
+        SELECT COALESCE(SUM(total), 0) as total
         FROM ventas
         WHERE fecha >= ? AND estado = 'completada'
-      ''', [inicio.toIso8601String()]);
+      ''', [iso]);
 
-      resumen['cantidad_${entry['label']}'] = result.first['cantidad'] ?? 0;
-      final rawTotal = result.first['total'];
+      final resultCantidad = await db.rawQuery('''
+        SELECT COALESCE(SUM(vd.cantidad), 0) as cantidad
+        FROM venta_detalles vd
+        JOIN ventas v ON vd.venta_id = v.id
+        WHERE v.fecha >= ? AND v.estado = 'completada'
+      ''', [iso]);
+
+      final rawTotal = resultVentas.first['total'];
       resumen['total_${entry['label']}'] = (rawTotal is num ? rawTotal.toDouble() : 0.0);
+      resumen['cantidad_${entry['label']}'] = resultCantidad.first['cantidad'] ?? 0;
     }
 
     final masVendido = await db.rawQuery('''

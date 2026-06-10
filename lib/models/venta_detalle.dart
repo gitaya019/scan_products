@@ -7,6 +7,7 @@ class VentaDetalle {
   double precioUnitario;
   double cantidad;
   double subtotal;
+  String? unidadMedida;
 
   VentaDetalle({
     this.id,
@@ -17,6 +18,7 @@ class VentaDetalle {
     required this.precioUnitario,
     required this.cantidad,
     required this.subtotal,
+    this.unidadMedida,
   });
 
   Map<String, dynamic> toMap() {
@@ -29,6 +31,7 @@ class VentaDetalle {
       'precio_unitario': precioUnitario,
       'cantidad': cantidad,
       'subtotal': subtotal,
+      'unidad_medida': unidadMedida,
     };
   }
 
@@ -42,6 +45,7 @@ class VentaDetalle {
       precioUnitario: map['precio_unitario'],
       cantidad: (map['cantidad'] ?? 0).toDouble(),
       subtotal: map['subtotal'],
+      unidadMedida: map['unidad_medida'],
     );
   }
 }

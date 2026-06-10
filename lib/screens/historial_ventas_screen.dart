@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/database_helper.dart';
 import '../models/venta_model.dart';
+import '../models/venta_detalle.dart';
 import '../utils/formatters.dart';
 
 class HistorialVentasScreen extends StatefulWidget {
@@ -63,21 +64,19 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
                         child: Row(
                           children: [
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(d.nombre,
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.w500)),
-                                  Text(
-                                    d.cantidad == d.cantidad.roundToDouble()
-                                        ? "${d.cantidad.toInt()} x \$${formatCurrency(d.precioUnitario)}"
-                                        : "${d.cantidad.toStringAsFixed(1)} x \$${formatCurrency(d.precioUnitario)}",
-                                    style: TextStyle(
-                                        color: Colors.black54, fontSize: 13),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(d.nombre,
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w500)),
+                                      Text(
+                                        _formatearDetalle(d),
+                                        style: TextStyle(
+                                            color: Colors.black54, fontSize: 13),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
                             ),
                             Text(
                               "\$${formatCurrency(d.subtotal)}",
@@ -150,6 +149,17 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
       await DatabaseHelper.instance.anularVenta(venta.id!);
       _cargarVentas();
     }
+  }
+
+  String _formatearDetalle(VentaDetalle d) {
+    final esPeso = ['kg', 'g', 'lb', 'L', 'mL'].contains(d.unidadMedida);
+    final cantidad = esPeso
+        ? (d.cantidad == d.cantidad.roundToDouble()
+            ? d.cantidad.toInt().toString()
+            : d.cantidad.toStringAsFixed(1))
+        : d.cantidad.toInt().toString();
+    final unidad = d.unidadMedida != null ? ' ${d.unidadMedida}' : '';
+    return '$cantidad$unidad x \$${formatCurrency(d.precioUnitario)}';
   }
 
   String _formatearFecha(String iso) {

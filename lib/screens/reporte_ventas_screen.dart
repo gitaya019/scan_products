@@ -72,19 +72,19 @@ class _ReporteVentasScreenState extends State<ReporteVentasScreen> {
                 children: [
                   _tarjeta(
                     "Ventas Hoy",
-                    "\$${formatCurrency((_resumen?['total_hoy'] ?? 0).toDouble())} — ${_resumen?['cantidad_hoy'] ?? 0} venta(s)",
+                    "\$${formatCurrency((_resumen?['total_hoy'] ?? 0).toDouble())} — ${_resumen?['cantidad_hoy'] ?? 0} producto(s)",
                     Icons.today,
                     Colors.blue,
                   ),
                   _tarjeta(
                     "Ventas Esta Semana",
-                    "\$${formatCurrency((_resumen?['total_semana'] ?? 0).toDouble())} — ${_resumen?['cantidad_semana'] ?? 0} venta(s)",
+                    "\$${formatCurrency((_resumen?['total_semana'] ?? 0).toDouble())} — ${_resumen?['cantidad_semana'] ?? 0} producto(s)",
                     Icons.date_range,
                     Colors.green,
                   ),
                   _tarjeta(
                     "Ventas Este Mes",
-                    "\$${formatCurrency((_resumen?['total_mes'] ?? 0).toDouble())} — ${_resumen?['cantidad_mes'] ?? 0} venta(s)",
+                    "\$${formatCurrency((_resumen?['total_mes'] ?? 0).toDouble())} — ${_resumen?['cantidad_mes'] ?? 0} producto(s)",
                     Icons.calendar_month,
                     Colors.indigo,
                   ),
