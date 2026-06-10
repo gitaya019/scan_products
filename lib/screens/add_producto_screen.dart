@@ -108,6 +108,11 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
     }
   }
 
+  String _stockLabel() {
+    if (_ventaPorPeso) return 'Stock ($_unidadMedida)';
+    return 'Stock (unidades)';
+  }
+
   IconData _pesoIcon() {
     switch (_unidadMedida) {
       case 'L':
@@ -335,9 +340,9 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                     Expanded(
                       child: ProductoTextField(
                         controller: _stockController,
-                        label: "Stock",
+                        label: _stockLabel(),
                         icon: Icons.inventory,
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: TextInputType.numberWithOptions(decimal: _ventaPorPeso),
                         validator: (value) =>
                             value!.isEmpty ? "Ingrese un stock" : null,
                       ),

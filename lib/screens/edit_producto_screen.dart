@@ -137,6 +137,11 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
     }
   }
 
+  String _stockLabel() {
+    if (_ventaPorPeso) return 'Stock ($_unidadMedida)';
+    return 'Stock (unidades)';
+  }
+
   Widget _seccionHeader(String titulo) {
     return Text(
       titulo,
@@ -313,9 +318,9 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                     Expanded(
                       child: ProductoTextField(
                         controller: _stockController,
-                        label: "Stock",
+                        label: _stockLabel(),
                         icon: Icons.inventory,
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: TextInputType.numberWithOptions(decimal: _ventaPorPeso),
                         validator: (value) =>
                             value!.isEmpty ? "Ingrese un stock" : null,
                       ),
