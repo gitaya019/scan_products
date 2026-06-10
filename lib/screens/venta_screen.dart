@@ -12,10 +12,14 @@ class VentaScreen extends StatefulWidget {
 
 class _VentaScreenState extends State<VentaScreen> {
   final List<CarritoItem> _items = [];
+  final TextEditingController _searchController = TextEditingController();
+  List<Producto> _searchResults = [];
+  bool _isSearching = false;
 
   double get _total => _items.fold(0, (sum, item) => sum + item.subtotal);
 
   String _labelCantidad(Producto p) {
+    if (!p.ventaPorPeso) return 'Cantidad';
     if (p.unidadMedida == null) return 'Cantidad';
     final labels = {
       'kg': 'Cantidad (kg)',
@@ -38,6 +42,49 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   double _incremento(CarritoItem item) => item.esPorPeso ? 0.1 : 1.0;
+
+  Future<void> _onSearchChanged(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+    final results = await DatabaseHelper.instance.searchProductos(query.trim());
+    setState(() {
+      _searchResults = results;
+      _isSearching = true;
+    });
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() {
+      _searchResults = [];
+      _isSearching = false;
+    });
+  }
+
+  void _agregarPorBusqueda(Producto producto) {
+    final existingIndex =
+        _items.indexWhere((item) => item.producto.id == producto.id);
+    if (existingIndex >= 0) {
+      setState(() {
+        _items[existingIndex].cantidad += _incremento(_items[existingIndex]);
+      });
+      _clearSearch();
+    } else {
+      _clearSearch();
+      _showQuantityDialog(producto);
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   Future<void> _scanBarcode() async {
     try {
@@ -74,7 +121,7 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   Future<void> _showQuantityDialog(Producto producto) async {
-    final esPeso = ['kg', 'g', 'lb', 'L', 'mL'].contains(producto.unidadMedida);
+    final esPeso = producto.ventaPorPeso;
     final cantidadController = TextEditingController(text: esPeso ? '1.0' : '1');
     final result = await showDialog<double>(
       context: context,
@@ -85,7 +132,7 @@ class _VentaScreenState extends State<VentaScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Código: ${producto.codigo}"),
+              if (producto.codigo != null) Text("Código: ${producto.codigo}"),
               Text("Precio: \$${formatCurrency(producto.precio)}"),
               if (producto.marca != null) Text("Marca: ${producto.marca}"),
               SizedBox(height: 16),
@@ -149,7 +196,7 @@ class _VentaScreenState extends State<VentaScreen> {
 
     for (var item in _items) {
       await DatabaseHelper.instance
-          .updateStock(item.producto.codigo, -item.cantidad);
+          .updateStock(item.producto.codigo, -item.cantidad, id: item.producto.id);
     }
 
     await DatabaseHelper.instance.addVenta(_total, _items);
@@ -262,99 +309,180 @@ class _VentaScreenState extends State<VentaScreen> {
               ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                decoration: InputDecoration(
+                  hintText: "Buscar producto por nombre...",
+                  hintStyle: TextStyle(color: Colors.black45),
+                  prefixIcon: Icon(Icons.search, color: Colors.black54),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(Icons.clear, color: Colors.black54),
+                          onPressed: _clearSearch,
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                      vertical: 14, horizontal: 16),
+                ),
+              ),
+            ),
+          ),
           Divider(color: Colors.grey.shade200),
           Expanded(
-            child: _items.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.add_shopping_cart_outlined,
-                            size: 80, color: Colors.black26),
-                        SizedBox(height: 16),
-                        Text(
-                          "Escanee un producto para comenzar",
+            child: _isSearching
+                ? _searchResults.isEmpty
+                    ? Center(
+                        child: Text(
+                          "Sin resultados",
                           style: TextStyle(
                             color: Colors.black45,
                             fontWeight: FontWeight.w300,
                             fontSize: 16,
                           ),
                         ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    itemCount: _items.length,
-                    itemBuilder: (context, index) {
-                      final item = _items[index];
-                      return Card(
-                        elevation: 2,
-                        color: Colors.white,
-                        shadowColor: Colors.black.withValues(alpha: 0.05),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item.producto.nombre,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      "\$${formatCurrency(item.subtotal)}",
-                                      style: const TextStyle(
-                                        color: Colors.black87,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        itemCount: _searchResults.length,
+                        itemBuilder: (context, index) {
+                          final producto = _searchResults[index];
+                          return Card(
+                            elevation: 2,
+                            color: Colors.white,
+                            shadowColor: Colors.black.withValues(alpha: 0.05),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            child: ListTile(
+                              title: Text(producto.nombre,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 15)),
+                              subtitle: Text(
+                                "${producto.marca != null ? '${producto.marca} | ' : ''}"
+                                "\$ ${formatCurrency(producto.precio)}",
+                                style: const TextStyle(
+                                    color: Colors.black54, fontSize: 13),
                               ),
-                              Row(
+                              trailing: Icon(Icons.add_circle_outline,
+                                  color: Theme.of(context).colorScheme.primary),
+                              onTap: () => _agregarPorBusqueda(producto),
+                            ),
+                          );
+                        },
+                      )
+                : _items.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_shopping_cart_outlined,
+                                size: 80, color: Colors.black26),
+                            SizedBox(height: 16),
+                            Text(
+                              "Escanee o busque un producto",
+                              style: TextStyle(
+                                color: Colors.black45,
+                                fontWeight: FontWeight.w300,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        itemCount: _items.length,
+                        itemBuilder: (context, index) {
+                          final item = _items[index];
+                          return Card(
+                            elevation: 2,
+                            color: Colors.white,
+                            shadowColor: Colors.black.withValues(alpha: 0.05),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              child: Row(
                                 children: [
-                                  IconButton(
-                                    icon: const Icon(
-                                        Icons.remove_circle_outline),
-                                    onPressed: () =>
-                                        _decrementarCantidad(index),
-                                    color: Colors.black54,
-                                  ),
-                                  Text(
-                                    _formatearCantidad(item),
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.producto.nombre,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          "\$${formatCurrency(item.subtotal)}",
+                                          style: const TextStyle(
+                                            color: Colors.black87,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  IconButton(
-                                    icon: const Icon(
-                                        Icons.add_circle_outline),
-                                    onPressed: () =>
-                                        _incrementarCantidad(index),
-                                    color: Colors.black54,
+                                  Row(
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(
+                                            Icons.remove_circle_outline),
+                                        onPressed: () =>
+                                            _decrementarCantidad(index),
+                                        color: Colors.black54,
+                                      ),
+                                      Text(
+                                        _formatearCantidad(item),
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(
+                                            Icons.add_circle_outline),
+                                        onPressed: () =>
+                                            _incrementarCantidad(index),
+                                        color: Colors.black54,
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                            ),
+                          );
+                        },
+                      ),
           ),
           if (_items.isNotEmpty)
             Container(

@@ -152,14 +152,14 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
   }
 
   String _formatearDetalle(VentaDetalle d) {
-    final esPeso = ['kg', 'g', 'lb', 'L', 'mL'].contains(d.unidadMedida);
-    final cantidad = esPeso
-        ? (d.cantidad == d.cantidad.roundToDouble()
-            ? d.cantidad.toInt().toString()
-            : d.cantidad.toStringAsFixed(1))
-        : d.cantidad.toInt().toString();
-    final unidad = d.unidadMedida != null ? ' ${d.unidadMedida}' : '';
-    return '$cantidad$unidad x \$${formatCurrency(d.precioUnitario)}';
+    if (d.ventaPorPeso) {
+      final cantidad = d.cantidad == d.cantidad.roundToDouble()
+          ? d.cantidad.toInt().toString()
+          : d.cantidad.toStringAsFixed(1);
+      final unidad = d.unidadMedida != null ? ' ${d.unidadMedida}' : '';
+      return '$cantidad$unidad x \$${formatCurrency(d.precioUnitario)}';
+    }
+    return '${d.cantidad.toInt()} x \$${formatCurrency(d.precioUnitario)}';
   }
 
   String _formatearFecha(String iso) {

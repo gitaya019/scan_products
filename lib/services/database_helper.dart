@@ -22,7 +22,7 @@ class DatabaseHelper {
     final path = join(dbPath, filePath);
 
     return await openDatabase(
-        path, version: 6, onCreate: _createDB, onUpgrade: _onUpgrade);
+        path, version: 7, onCreate: _createDB, onUpgrade: _onUpgrade);
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -37,7 +37,8 @@ class DatabaseHelper {
         stock REAL DEFAULT 0.0,
         marca TEXT,
         unidad_medida TEXT,
-        iva REAL DEFAULT 0.0
+        iva REAL DEFAULT 0.0,
+        venta_por_peso INTEGER DEFAULT 0
       )
     ''');
     await _createVentasTables(db);
@@ -62,6 +63,7 @@ class DatabaseHelper {
         precio_unitario REAL,
         cantidad REAL,
         subtotal REAL,
+        venta_por_peso INTEGER DEFAULT 0,
         FOREIGN KEY (venta_id) REFERENCES ventas(id) ON DELETE CASCADE
       )
     ''');
@@ -84,6 +86,12 @@ class DatabaseHelper {
       await db.execute(
           "ALTER TABLE venta_detalles ADD COLUMN unidad_medida TEXT");
     }
+    if (oldVersion < 7) {
+      await db.execute(
+          "ALTER TABLE productos ADD COLUMN venta_por_peso INTEGER DEFAULT 0");
+      await db.execute(
+          "ALTER TABLE venta_detalles ADD COLUMN venta_por_peso INTEGER DEFAULT 0");
+    }
   }
 
   Future<int> addProducto(Map<String, dynamic> producto) async {
@@ -96,11 +104,17 @@ class DatabaseHelper {
     return await db.query('productos');
   }
 
-  Future<int> updateStock(String codigo, double cantidad) async {
+  Future<int> updateStock(String? codigo, double cantidad, {int? id}) async {
     final db = await database;
+    if (codigo != null && codigo.isNotEmpty) {
+      return await db.rawUpdate(
+        'UPDATE productos SET stock = stock + ? WHERE codigo = ?',
+        [cantidad, codigo],
+      );
+    }
     return await db.rawUpdate(
-      'UPDATE productos SET stock = stock + ? WHERE codigo = ?',
-      [cantidad, codigo],
+      'UPDATE productos SET stock = stock + ? WHERE id = ?',
+      [cantidad, id],
     );
   }
 
@@ -124,6 +138,7 @@ class DatabaseHelper {
   }
 
   Future<Producto?> getProductoByCodigo(String codigo) async {
+    if (codigo.isEmpty) return null;
     final db = await database;
     return await db.query(
       'productos',
@@ -135,6 +150,19 @@ class DatabaseHelper {
       }
       return null;
     });
+  }
+
+  Future<List<Producto>> searchProductos(String query) async {
+    final db = await database;
+    final term = '%$query%';
+    final result = await db.query(
+      'productos',
+      where: 'nombre LIKE ? OR codigo LIKE ?',
+      whereArgs: [term, term],
+      orderBy: 'nombre ASC',
+      limit: 20,
+    );
+    return result.map((e) => Producto.fromMap(e)).toList();
   }
 
   Future<void> addVenta(double total, List<CarritoItem> items) async {
@@ -157,6 +185,7 @@ class DatabaseHelper {
         'cantidad': item.cantidad,
         'subtotal': item.subtotal,
         'unidad_medida': item.producto.unidadMedida,
+        'venta_por_peso': item.producto.ventaPorPeso ? 1 : 0,
       });
     }
   }
@@ -182,10 +211,17 @@ class DatabaseHelper {
     final detalles = await getVentaDetalles(ventaId);
 
     for (var d in detalles) {
-      await db.rawUpdate(
-        'UPDATE productos SET stock = stock + ? WHERE codigo = ?',
-        [d.cantidad, d.codigo],
-      );
+      if (d.codigo != null && d.codigo!.isNotEmpty) {
+        await db.rawUpdate(
+          'UPDATE productos SET stock = stock + ? WHERE codigo = ?',
+          [d.cantidad, d.codigo],
+        );
+      } else {
+        await db.rawUpdate(
+          'UPDATE productos SET stock = stock + ? WHERE id = ?',
+          [d.cantidad, d.productoId],
+        );
+      }
     }
 
     await db.update(

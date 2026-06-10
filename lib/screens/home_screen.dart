@@ -43,7 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
             p.nombre
                 .toLowerCase()
                 .contains(_searchController.text.toLowerCase()) ||
-            p.codigo
+            (p.codigo ?? '')
                 .toLowerCase()
                 .contains(_searchController.text.toLowerCase());
         final coincideStock = !_stockBajoActivo || p.stock <= _umbralStockBajo;
@@ -111,20 +111,20 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (cantidad != null && cantidad > 0) {
-      await DatabaseHelper.instance.updateStock(producto.codigo, cantidad);
+      await DatabaseHelper.instance.updateStock(producto.codigo, cantidad, id: producto.id);
       _loadProductos();
     }
   }
 
   String _formatearStock(Producto p) {
-    final esPeso = ['kg', 'g', 'lb', 'L', 'mL'].contains(p.unidadMedida);
-    final cantidad = esPeso
-        ? (p.stock == p.stock.roundToDouble()
-            ? p.stock.toInt().toString()
-            : p.stock.toStringAsFixed(1))
-        : p.stock.toInt().toString();
-    final unidad = p.unidadMedida != null ? ' ${p.unidadMedida}' : '';
-    return '$cantidad$unidad';
+    if (p.ventaPorPeso) {
+      final cantidad = p.stock == p.stock.roundToDouble()
+          ? p.stock.toInt().toString()
+          : p.stock.toStringAsFixed(1);
+      final unidad = p.unidadMedida != null ? ' ${p.unidadMedida}' : '';
+      return '$cantidad$unidad';
+    }
+    return p.stock.toInt().toString();
   }
 
   Future<void> _deleteProducto(int id) async {
@@ -400,7 +400,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ],
                                   )
                                 : Text(
-                                    "${producto.marca != null ? '${producto.marca} | ' : ''}Código: ${producto.codigo} | "
+                                    "${producto.marca != null ? '${producto.marca} | ' : ''}${producto.codigo != null ? 'Código: ${producto.codigo} | ' : ''}"
                                     "\$ ${formatCurrency(producto.precio)} | Stock: ${_formatearStock(producto)}",
                                     style: TextStyle(color: Colors.black54),
                                   ),

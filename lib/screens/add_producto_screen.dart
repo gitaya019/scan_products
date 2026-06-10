@@ -21,6 +21,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
   final _stockController = TextEditingController();
   final _marcaController = TextEditingController();
 
+  bool _ventaPorPeso = false;
   String _unidadMedida = 'unidad';
   final _ivaController = TextEditingController();
 
@@ -77,7 +78,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                 final cantidad = double.tryParse(cantidadController.text) ?? 0.0;
                 if (cantidad > 0) {
                   await DatabaseHelper.instance
-                      .updateStock(producto.codigo, cantidad);
+                      .updateStock(producto.codigo, cantidad, id: producto.id);
                   Navigator.pop(context);
                   Navigator.pop(context);
                 }
@@ -144,6 +145,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
         marca: _marcaController.text.isEmpty ? null : _marcaController.text,
         unidadMedida: _unidadMedida,
         iva: double.tryParse(_ivaController.text) ?? 0.0,
+        ventaPorPeso: _ventaPorPeso,
       );
 
       await DatabaseHelper.instance.addProducto(producto.toMap());
@@ -189,10 +191,8 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                     Expanded(
                       child: ProductoTextField(
                         controller: _codigoController,
-                        label: "Código de Barras",
+                        label: "Código de Barras (opcional)",
                         icon: Icons.barcode_reader,
-                        validator: (value) =>
-                            value!.isEmpty ? "Ingrese un código" : null,
                       ),
                     ),
                     SizedBox(width: 10),
@@ -270,6 +270,38 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                       ),
                     ),
                   ],
+                ),
+                SizedBox(height: 8),
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: SwitchListTile(
+                    title: const Text("Vender por peso",
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                    subtitle: Text(
+                      _ventaPorPeso
+                          ? "Se vende en $_unidadMedida (decimal)"
+                          : "Se vende por unidad (entero)",
+                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                    value: _ventaPorPeso,
+                    onChanged: (v) => setState(() => _ventaPorPeso = v),
+                    secondary: Icon(
+                      _ventaPorPeso ? Icons.scale : Icons.inventory_2_outlined,
+                      color: Colors.black54,
+                    ),
+                    activeColor: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
                 SizedBox(height: 24),
                 _seccionHeader("Precio y Stock"),

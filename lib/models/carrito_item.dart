@@ -8,6 +8,5 @@ class CarritoItem {
 
   double get subtotal => producto.precio * cantidad;
 
-  bool get esPorPeso =>
-      ['kg', 'g', 'lb', 'L', 'mL'].contains(producto.unidadMedida);
+  bool get esPorPeso => producto.ventaPorPeso;
 }

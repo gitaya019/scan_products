@@ -25,6 +25,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
   final _marcaController = TextEditingController();
 
   late String _unidadMedida;
+  late bool _ventaPorPeso;
   final _ivaController = TextEditingController();
 
   final _unidades = ['kg', 'g', 'lb', 'L', 'mL', 'unidad', 'paquete', 'caja'];
@@ -34,7 +35,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
   void initState() {
     super.initState();
     _nombreController.text = widget.producto.nombre;
-    _codigoController.text = widget.producto.codigo;
+    _codigoController.text = widget.producto.codigo ?? '';
     _categoriaController.text = widget.producto.categoria;
     _precioController.text = formatCurrency(widget.producto.precio);
     _pesoController.text = widget.producto.peso.toString();
@@ -43,6 +44,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
         : widget.producto.stock.toString();
     _marcaController.text = widget.producto.marca ?? '';
     _unidadMedida = widget.producto.unidadMedida ?? _unidades.first;
+    _ventaPorPeso = widget.producto.ventaPorPeso;
     _ivaController.text = widget.producto.iva.toStringAsFixed(0);
   }
 
@@ -102,6 +104,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
         marca: _marcaController.text.isEmpty ? null : _marcaController.text,
         unidadMedida: _unidadMedida,
         iva: double.tryParse(_ivaController.text) ?? 0.0,
+        ventaPorPeso: _ventaPorPeso,
       );
 
       await DatabaseHelper.instance.updateProducto(producto.toMap());
@@ -245,6 +248,38 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                       ),
                     ),
                   ],
+                ),
+                SizedBox(height: 8),
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: SwitchListTile(
+                    title: const Text("Vender por peso",
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                    subtitle: Text(
+                      _ventaPorPeso
+                          ? "Se vende en $_unidadMedida (decimal)"
+                          : "Se vende por unidad (entero)",
+                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                    value: _ventaPorPeso,
+                    onChanged: (v) => setState(() => _ventaPorPeso = v),
+                    secondary: Icon(
+                      _ventaPorPeso ? Icons.scale : Icons.inventory_2_outlined,
+                      color: Colors.black54,
+                    ),
+                    activeColor: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
                 SizedBox(height: 24),
                 _seccionHeader("Precio y Stock"),
