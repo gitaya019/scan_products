@@ -30,6 +30,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   int get _umbralStockBajo => 5;
+  int get _conteoStockBajo =>
+      productos.where((p) => p.stock <= _umbralStockBajo).length;
 
   void _filtrar() {
     setState(() {
@@ -61,6 +63,53 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       print("Error al escanear: $e");
+    }
+  }
+
+  Future<void> _mostrarDialogoAgregarStock(Producto producto) async {
+    final controller = TextEditingController();
+    final cantidad = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Agregar Stock"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(producto.nombre,
+                style: const TextStyle(fontWeight: FontWeight.w500)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: "Cantidad a agregar",
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.numberWithOptions(decimal: true),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancelar",
+                style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              final cant = double.tryParse(controller.text) ?? 0;
+              Navigator.pop(ctx, cant > 0 ? cant : null);
+            },
+            child: const Text("Agregar"),
+          ),
+        ],
+      ),
+    );
+
+    if (cantidad != null && cantidad > 0) {
+      await DatabaseHelper.instance.updateStock(producto.codigo, cantidad);
+      _loadProductos();
     }
   }
 
@@ -152,22 +201,31 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       SizedBox(width: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: _stockBajoActivo
-                              ? Colors.orange.shade100
-                              : Colors.black12,
-                          borderRadius: BorderRadius.circular(10),
+                      Badge(
+                        isLabelVisible: _conteoStockBajo > 0,
+                        label: Text(
+                          '$_conteoStockBajo',
+                          style: const TextStyle(
+                              fontSize: 10, color: Colors.white),
                         ),
-                        child: IconButton(
-                          icon: Icon(
-                            Icons.warning_amber_rounded,
+                        smallSize: 18,
+                        child: Container(
+                          decoration: BoxDecoration(
                             color: _stockBajoActivo
-                                ? Colors.orange.shade800
-                                : Colors.black54,
+                                ? Colors.orange.shade100
+                                : Colors.black12,
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          onPressed: _toggleStockBajo,
-                          tooltip: "Filtrar stock bajo",
+                          child: IconButton(
+                            icon: Icon(
+                              Icons.warning_amber_rounded,
+                              color: _stockBajoActivo
+                                  ? Colors.orange.shade800
+                                  : Colors.black54,
+                            ),
+                            onPressed: _toggleStockBajo,
+                            tooltip: "Filtrar stock bajo",
+                          ),
                         ),
                       ),
                       SizedBox(width: 8),
@@ -203,7 +261,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(
                         _isSearching
                             ? "No se encontraron productos"
-                            : "No hay productos con stock bajo",
+                            : _stockBajoActivo
+                                ? "No hay productos con stock bajo"
+                                : "No hay productos registrados",
                         style: TextStyle(
                             color: Colors.black45, fontWeight: FontWeight.w300),
                       ),
@@ -301,8 +361,22 @@ class _HomeScreenState extends State<HomeScreen> {
                                     "\$ ${formatCurrency(producto.precio)} | Stock: ${producto.stock == producto.stock.roundToDouble() ? producto.stock.toInt().toString() : producto.stock.toStringAsFixed(1)}",
                                     style: TextStyle(color: Colors.black54),
                                   ),
-                            trailing: Icon(Icons.chevron_right,
-                                color: Colors.black54),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.add_circle_outline,
+                                      size: 20,
+                                      color: Colors.green.shade600),
+                                  onPressed: () =>
+                                      _mostrarDialogoAgregarStock(
+                                          producto),
+                                  tooltip: "Agregar stock",
+                                ),
+                                Icon(Icons.chevron_right,
+                                    color: Colors.black54),
+                              ],
+                            ),
                             onTap: () async {
                               await Navigator.push(
                                 context,

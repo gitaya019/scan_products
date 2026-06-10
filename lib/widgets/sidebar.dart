@@ -46,7 +46,7 @@ class Sidebar extends StatelessWidget {
                       ),
                       SizedBox(width: 8),
                       Text(
-                        'v1.0.0',
+                        'v2.0.0',
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 14,
