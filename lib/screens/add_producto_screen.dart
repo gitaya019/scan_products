@@ -74,7 +74,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
             ),
             TextButton(
               onPressed: () async {
-                final cantidad = int.tryParse(cantidadController.text) ?? 0;
+                final cantidad = double.tryParse(cantidadController.text) ?? 0.0;
                 if (cantidad > 0) {
                   await DatabaseHelper.instance
                       .updateStock(producto.codigo, cantidad);
@@ -128,7 +128,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
         categoria: _categoriaController.text,
         precio: parseCurrency(_precioController.text),
         peso: double.parse(_pesoController.text),
-        stock: int.parse(_stockController.text),
+        stock: double.parse(_stockController.text),
         marca: _marcaController.text.isEmpty ? null : _marcaController.text,
         unidadMedida: _unidadMedida,
         iva: double.tryParse(_ivaController.text) ?? 0.0,
@@ -276,7 +276,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                         controller: _stockController,
                         label: "Stock",
                         icon: Icons.inventory,
-                        keyboardType: TextInputType.number,
+                        keyboardType: TextInputType.numberWithOptions(decimal: true),
                         validator: (value) =>
                             value!.isEmpty ? "Ingrese un stock" : null,
                       ),

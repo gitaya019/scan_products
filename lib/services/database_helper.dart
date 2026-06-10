@@ -21,7 +21,8 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    return await openDatabase(path, version: 4, onCreate: _createDB, onUpgrade: _onUpgrade);
+    return await openDatabase(
+        path, version: 5, onCreate: _createDB, onUpgrade: _onUpgrade);
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -33,7 +34,7 @@ class DatabaseHelper {
         categoria TEXT,
         precio REAL,
         peso REAL,
-        stock INTEGER DEFAULT 0,
+        stock REAL DEFAULT 0.0,
         marca TEXT,
         unidad_medida TEXT,
         iva REAL DEFAULT 0.0
@@ -47,7 +48,8 @@ class DatabaseHelper {
       CREATE TABLE ventas(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         total REAL,
-        fecha TEXT
+        fecha TEXT,
+        estado TEXT DEFAULT 'completada'
       )
     ''');
     await db.execute('''
@@ -58,7 +60,7 @@ class DatabaseHelper {
         nombre TEXT,
         codigo TEXT,
         precio_unitario REAL,
-        cantidad INTEGER,
+        cantidad REAL,
         subtotal REAL,
         FOREIGN KEY (venta_id) REFERENCES ventas(id) ON DELETE CASCADE
       )
@@ -74,6 +76,10 @@ class DatabaseHelper {
     if (oldVersion < 4) {
       await _createVentasTables(db);
     }
+    if (oldVersion < 5) {
+      await db.execute(
+          "ALTER TABLE ventas ADD COLUMN estado TEXT DEFAULT 'completada'");
+    }
   }
 
   Future<int> addProducto(Map<String, dynamic> producto) async {
@@ -86,7 +92,7 @@ class DatabaseHelper {
     return await db.query('productos');
   }
 
-  Future<int> updateStock(String codigo, int cantidad) async {
+  Future<int> updateStock(String codigo, double cantidad) async {
     final db = await database;
     return await db.rawUpdate(
       'UPDATE productos SET stock = stock + ? WHERE codigo = ?',
@@ -134,6 +140,7 @@ class DatabaseHelper {
     final ventaId = await db.insert('ventas', {
       'total': total,
       'fecha': fecha,
+      'estado': 'completada',
     });
 
     for (var item in items) {
@@ -163,5 +170,77 @@ class DatabaseHelper {
       whereArgs: [ventaId],
     );
     return result.map((e) => VentaDetalle.fromMap(e)).toList();
+  }
+
+  Future<void> anularVenta(int ventaId) async {
+    final db = await database;
+    final detalles = await getVentaDetalles(ventaId);
+
+    for (var d in detalles) {
+      await db.rawUpdate(
+        'UPDATE productos SET stock = stock + ? WHERE codigo = ?',
+        [d.cantidad, d.codigo],
+      );
+    }
+
+    await db.update(
+      'ventas',
+      {'estado': 'anulada'},
+      where: 'id = ?',
+      whereArgs: [ventaId],
+    );
+  }
+
+  Future<Map<String, dynamic>> getResumenVentas() async {
+    final db = await database;
+    final now = DateTime.now();
+
+    final inicioHoy = DateTime(now.year, now.month, now.day);
+    final inicioSemana =
+        now.subtract(Duration(days: now.weekday - 1));
+    final inicioSemanaDate =
+        DateTime(inicioSemana.year, inicioSemana.month, inicioSemana.day);
+    final inicioMes = DateTime(now.year, now.month, 1);
+
+    final resumen = <String, dynamic>{};
+
+    final periodos = [
+      {'label': 'hoy', 'inicio': inicioHoy},
+      {'label': 'semana', 'inicio': inicioSemanaDate},
+      {'label': 'mes', 'inicio': inicioMes},
+    ];
+
+    for (final entry in periodos) {
+      final inicio = entry['inicio'] as DateTime;
+      final result = await db.rawQuery('''
+        SELECT COUNT(*) as cantidad, COALESCE(SUM(total), 0) as total
+        FROM ventas
+        WHERE fecha >= ? AND estado = 'completada'
+      ''', [inicio.toIso8601String()]);
+
+      resumen['cantidad_${entry['label']}'] = result.first['cantidad'] ?? 0;
+      final rawTotal = result.first['total'];
+      resumen['total_${entry['label']}'] = (rawTotal is num ? rawTotal.toDouble() : 0.0);
+    }
+
+    final masVendido = await db.rawQuery('''
+      SELECT vd.nombre, SUM(vd.cantidad) as total_cantidad
+      FROM venta_detalles vd
+      JOIN ventas v ON vd.venta_id = v.id
+      WHERE v.estado = 'completada'
+      GROUP BY vd.producto_id
+      ORDER BY total_cantidad DESC
+      LIMIT 1
+    ''');
+
+    if (masVendido.isNotEmpty && masVendido.first['nombre'] != null) {
+      resumen['producto_top'] = masVendido.first['nombre'];
+      resumen['producto_top_cantidad'] = masVendido.first['total_cantidad'];
+    } else {
+      resumen['producto_top'] = null;
+      resumen['producto_top_cantidad'] = 0;
+    }
+
+    return resumen;
   }
 }

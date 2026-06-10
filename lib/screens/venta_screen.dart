@@ -15,6 +15,30 @@ class _VentaScreenState extends State<VentaScreen> {
 
   double get _total => _items.fold(0, (sum, item) => sum + item.subtotal);
 
+  String _labelCantidad(Producto p) {
+    if (p.unidadMedida == null) return 'Cantidad';
+    final labels = {
+      'kg': 'Cantidad (kg)',
+      'g': 'Cantidad (g)',
+      'lb': 'Cantidad (lb)',
+      'L': 'Volumen (L)',
+      'mL': 'Volumen (mL)',
+    };
+    return labels[p.unidadMedida!] ?? 'Cantidad';
+  }
+
+  String _formatearCantidad(CarritoItem item) {
+    if (item.esPorPeso) {
+      final dec = item.cantidad == item.cantidad.roundToDouble()
+          ? item.cantidad.toInt().toString()
+          : item.cantidad.toStringAsFixed(1);
+      return '$dec ${item.producto.unidadMedida}';
+    }
+    return '${item.cantidad.toInt()}';
+  }
+
+  double _incremento(CarritoItem item) => item.esPorPeso ? 0.1 : 1.0;
+
   Future<void> _scanBarcode() async {
     try {
       var result = await BarcodeScanner.scan();
@@ -39,7 +63,7 @@ class _VentaScreenState extends State<VentaScreen> {
 
       if (existingIndex >= 0) {
         setState(() {
-          _items[existingIndex].cantidad++;
+          _items[existingIndex].cantidad += _incremento(_items[existingIndex]);
         });
       } else {
         _showQuantityDialog(producto);
@@ -50,8 +74,9 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   Future<void> _showQuantityDialog(Producto producto) async {
-    final cantidadController = TextEditingController(text: '1');
-    final result = await showDialog<int>(
+    final esPeso = ['kg', 'g', 'lb', 'L', 'mL'].contains(producto.unidadMedida);
+    final cantidadController = TextEditingController(text: esPeso ? '1.0' : '1');
+    final result = await showDialog<double>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -67,10 +92,12 @@ class _VentaScreenState extends State<VentaScreen> {
               TextField(
                 controller: cantidadController,
                 decoration: InputDecoration(
-                  labelText: "Cantidad",
+                  labelText: _labelCantidad(producto),
                   border: OutlineInputBorder(),
                 ),
-                keyboardType: TextInputType.number,
+                keyboardType: esPeso
+                    ? TextInputType.numberWithOptions(decimal: true)
+                    : TextInputType.number,
                 autofocus: true,
               ),
             ],
@@ -82,8 +109,9 @@ class _VentaScreenState extends State<VentaScreen> {
             ),
             TextButton(
               onPressed: () {
-                final cant = int.tryParse(cantidadController.text) ?? 1;
-                Navigator.pop(context, cant > 0 ? cant : 1);
+                final cant =
+                    double.tryParse(cantidadController.text) ?? (esPeso ? 1.0 : 1);
+                Navigator.pop(context, cant > 0 ? cant : (esPeso ? 0.1 : 1));
               },
               child: Text("Agregar"),
             ),
@@ -101,14 +129,15 @@ class _VentaScreenState extends State<VentaScreen> {
 
   void _incrementarCantidad(int index) {
     setState(() {
-      _items[index].cantidad++;
+      _items[index].cantidad += _incremento(_items[index]);
     });
   }
 
   void _decrementarCantidad(int index) {
     setState(() {
-      if (_items[index].cantidad > 1) {
-        _items[index].cantidad--;
+      final paso = _incremento(_items[index]);
+      if (_items[index].cantidad > paso) {
+        _items[index].cantidad -= paso;
       } else {
         _items.removeAt(index);
       }
@@ -196,8 +225,7 @@ class _VentaScreenState extends State<VentaScreen> {
                 icon: Icon(Icons.qr_code_scanner, size: 28),
                 label: Text(
                   "Escanear Producto",
-                  style: TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w300),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w300),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.black87,
@@ -251,8 +279,7 @@ class _VentaScreenState extends State<VentaScreen> {
                             children: [
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       item.producto.nombre,
@@ -282,7 +309,7 @@ class _VentaScreenState extends State<VentaScreen> {
                                     color: Colors.black54,
                                   ),
                                   Text(
-                                    "${item.cantidad}",
+                                    _formatearCantidad(item),
                                     style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,

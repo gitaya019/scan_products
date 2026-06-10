@@ -5,7 +5,7 @@
   String categoria;
   double precio;
   double peso;
-  int stock;
+  double stock;
   String? marca;
   String? unidadMedida;
   double iva;
@@ -17,7 +17,7 @@
     required this.categoria,
     required this.precio,
     required this.peso,
-    this.stock = 0,
+    this.stock = 0.0,
     this.marca,
     this.unidadMedida,
     this.iva = 0.0,
@@ -46,7 +46,7 @@
       categoria: map['categoria'],
       precio: map['precio'],
       peso: map['peso'],
-      stock: map['stock'],
+      stock: (map['stock'] ?? 0).toDouble(),
       marca: map['marca'],
       unidadMedida: map['unidad_medida'],
       iva: (map['iva'] ?? 0.0).toDouble(),

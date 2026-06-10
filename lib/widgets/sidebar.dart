@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import '../screens/historial_ventas_screen.dart';
+import '../screens/reporte_ventas_screen.dart';
 
 class Sidebar extends StatelessWidget {
   final Function? onVenta;
@@ -95,6 +96,31 @@ class Sidebar extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                       builder: (_) => HistorialVentasScreen()),
+                );
+              },
+              trailing: Icon(
+                Icons.chevron_right,
+                color: Colors.black54,
+              ),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.bar_chart_outlined,
+                color: Colors.black87,
+              ),
+              title: Text(
+                'Reporte de Ventas',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => ReporteVentasScreen()),
                 );
               },
               trailing: Icon(

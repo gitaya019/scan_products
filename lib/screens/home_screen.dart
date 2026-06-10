@@ -19,6 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Producto> productosFiltrados = [];
   final _searchController = TextEditingController();
   bool _isSearching = false;
+  bool _stockBajoActivo = false;
 
   Future<void> _loadProductos() async {
     final data = await DatabaseHelper.instance.getProductos();
@@ -28,19 +29,26 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _filterProductos(String query) {
+  int get _umbralStockBajo => 5;
+
+  void _filtrar() {
     setState(() {
-      if (query.isEmpty) {
-        productosFiltrados = productos;
-        _isSearching = false;
-      } else {
-        _isSearching = true;
-        productosFiltrados = productos.where((producto) {
-          return producto.nombre.toLowerCase().contains(query.toLowerCase()) ||
-              producto.codigo.toLowerCase().contains(query.toLowerCase());
-        }).toList();
-      }
+      _isSearching = _searchController.text.isNotEmpty;
+      _stockBajoActivo = _stockBajoActivo;
+
+      productosFiltrados = productos.where((p) {
+        final coincideBusqueda = _searchController.text.isEmpty ||
+            p.nombre.toLowerCase().contains(_searchController.text.toLowerCase()) ||
+            p.codigo.toLowerCase().contains(_searchController.text.toLowerCase());
+        final coincideStock = !_stockBajoActivo || p.stock <= _umbralStockBajo;
+        return coincideBusqueda && coincideStock;
+      }).toList();
     });
+  }
+
+  void _toggleStockBajo() {
+    _stockBajoActivo = !_stockBajoActivo;
+    _filtrar();
   }
 
   Future<void> _scanBarcode() async {
@@ -50,7 +58,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (scannedCode.isNotEmpty) {
         _searchController.text = scannedCode;
-        _filterProductos(scannedCode);
       }
     } catch (e) {
       print("Error al escanear: $e");
@@ -66,9 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadProductos();
-    _searchController.addListener(() {
-      _filterProductos(_searchController.text);
-    });
+    _searchController.addListener(_filtrar);
   }
 
   @override
@@ -146,7 +151,26 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       ),
-                      SizedBox(width: 12),
+                      SizedBox(width: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: _stockBajoActivo
+                              ? Colors.orange.shade100
+                              : Colors.black12,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.warning_amber_rounded,
+                            color: _stockBajoActivo
+                                ? Colors.orange.shade800
+                                : Colors.black54,
+                          ),
+                          onPressed: _toggleStockBajo,
+                          tooltip: "Filtrar stock bajo",
+                        ),
+                      ),
+                      SizedBox(width: 8),
                       Container(
                         decoration: BoxDecoration(
                           color: Colors.black12,
@@ -172,14 +196,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       Icon(
                           _isSearching
                               ? Icons.search_off
-                              : Icons.inventory_2_outlined,
+                              : Icons.warning_amber_rounded,
                           size: 80,
                           color: Colors.black26),
                       SizedBox(height: 16),
                       Text(
                         _isSearching
                             ? "No se encontraron productos"
-                            : "No hay productos registrados",
+                            : "No hay productos con stock bajo",
                         style: TextStyle(
                             color: Colors.black45, fontWeight: FontWeight.w300),
                       ),
@@ -248,11 +272,35 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: ListTile(
                             title: Text(producto.nombre,
                                 style: TextStyle(fontWeight: FontWeight.w500)),
-                            subtitle: Text(
-                              "${producto.marca != null ? '${producto.marca} | ' : ''}Código: ${producto.codigo} | "
-                              "\$ ${formatCurrency(producto.precio)} | Stock: ${producto.stock}",
-                              style: TextStyle(color: Colors.black54),
-                            ),
+                            subtitle: producto.stock <= _umbralStockBajo
+                                ? Row(
+                                    children: [
+                                      Icon(Icons.warning_amber_rounded,
+                                          size: 16,
+                                          color: Colors.red.shade600),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        "${producto.marca != null ? '${producto.marca} | ' : ''}"
+                                        "\$ ${formatCurrency(producto.precio)} | ",
+                                        style: TextStyle(
+                                            color: Colors.black54,
+                                            fontSize: 13),
+                                      ),
+                                      Text(
+                                        "Stock: ${producto.stock == producto.stock.roundToDouble() ? producto.stock.toInt().toString() : producto.stock.toStringAsFixed(1)}",
+                                        style: TextStyle(
+                                          color: Colors.red.shade600,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Text(
+                                    "${producto.marca != null ? '${producto.marca} | ' : ''}Código: ${producto.codigo} | "
+                                    "\$ ${formatCurrency(producto.precio)} | Stock: ${producto.stock == producto.stock.roundToDouble() ? producto.stock.toInt().toString() : producto.stock.toStringAsFixed(1)}",
+                                    style: TextStyle(color: Colors.black54),
+                                  ),
                             trailing: Icon(Icons.chevron_right,
                                 color: Colors.black54),
                             onTap: () async {

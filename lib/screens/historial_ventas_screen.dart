@@ -70,7 +70,9 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
                                       style: TextStyle(
                                           fontWeight: FontWeight.w500)),
                                   Text(
-                                    "${d.cantidad} x \$${formatCurrency(d.precioUnitario)}",
+                                    d.cantidad == d.cantidad.roundToDouble()
+                                        ? "${d.cantidad.toInt()} x \$${formatCurrency(d.precioUnitario)}"
+                                        : "${d.cantidad.toStringAsFixed(1)} x \$${formatCurrency(d.precioUnitario)}",
                                     style: TextStyle(
                                         color: Colors.black54, fontSize: 13),
                                   ),
@@ -118,6 +120,35 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
           );
         },
       );
+    }
+  }
+
+  Future<void> _anularVenta(Venta venta) async {
+    if (venta.estado == 'anulada') return;
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Anular Venta"),
+        content: const Text(
+            "¿Estás seguro? Se restaurará el stock de todos los productos."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text("Cancelar",
+                style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text("Anular", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      await DatabaseHelper.instance.anularVenta(venta.id!);
+      _cargarVentas();
     }
   }
 
@@ -178,30 +209,80 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
                     itemCount: _ventas.length,
                     itemBuilder: (context, index) {
                       final venta = _ventas[index];
+                      final anulada = venta.estado == 'anulada';
                       return Card(
                         elevation: 0,
-                        color: Colors.grey.shade100,
+                        color: anulada
+                            ? Colors.grey.shade200
+                            : Colors.grey.shade100,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         margin: EdgeInsets.symmetric(vertical: 4),
-                        child: ListTile(
-                          contentPadding: EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 4),
-                          title: Text(
-                            _formatearFecha(venta.fecha),
-                            style: TextStyle(
-                                fontWeight: FontWeight.w500, fontSize: 14),
+                        child: Opacity(
+                          opacity: anulada ? 0.6 : 1.0,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 4),
+                            title: Text(
+                              _formatearFecha(venta.fecha),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 14,
+                                decoration: anulada
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                              ),
+                            ),
+                            subtitle: Row(
+                              children: [
+                                if (anulada)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: Container(
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.shade100,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        "Anulada",
+                                        style: TextStyle(
+                                          color: Colors.red.shade800,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                Text(
+                                  "\$${formatCurrency(venta.total)}",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: anulada
+                                        ? Colors.black38
+                                        : Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (!anulada)
+                                  IconButton(
+                                    icon: Icon(Icons.cancel_outlined,
+                                        color: Colors.red.shade400, size: 20),
+                                    onPressed: () => _anularVenta(venta),
+                                    tooltip: "Anular venta",
+                                  ),
+                                Icon(Icons.chevron_right,
+                                    color: Colors.black54),
+                              ],
+                            ),
+                            onTap: () => _verDetalle(venta),
                           ),
-                          subtitle: Text(
-                            "Total: \$${formatCurrency(venta.total)}",
-                            style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87),
-                          ),
-                          trailing: Icon(Icons.chevron_right,
-                              color: Colors.black54),
-                          onTap: () => _verDetalle(venta),
                         ),
                       );
                     },

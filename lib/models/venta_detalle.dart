@@ -5,7 +5,7 @@ class VentaDetalle {
   String nombre;
   String codigo;
   double precioUnitario;
-  int cantidad;
+  double cantidad;
   double subtotal;
 
   VentaDetalle({
@@ -40,7 +40,7 @@ class VentaDetalle {
       nombre: map['nombre'],
       codigo: map['codigo'],
       precioUnitario: map['precio_unitario'],
-      cantidad: map['cantidad'],
+      cantidad: (map['cantidad'] ?? 0).toDouble(),
       subtotal: map['subtotal'],
     );
   }

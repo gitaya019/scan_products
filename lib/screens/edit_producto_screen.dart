@@ -38,7 +38,9 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
     _categoriaController.text = widget.producto.categoria;
     _precioController.text = formatCurrency(widget.producto.precio);
     _pesoController.text = widget.producto.peso.toString();
-    _stockController.text = widget.producto.stock.toString();
+    _stockController.text = widget.producto.stock == widget.producto.stock.roundToDouble()
+        ? widget.producto.stock.toInt().toString()
+        : widget.producto.stock.toString();
     _marcaController.text = widget.producto.marca ?? '';
     _unidadMedida = widget.producto.unidadMedida ?? _unidades.first;
     _ivaController.text = widget.producto.iva.toStringAsFixed(0);
@@ -96,7 +98,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
         categoria: _categoriaController.text,
         precio: parseCurrency(_precioController.text),
         peso: double.parse(_pesoController.text),
-        stock: int.parse(_stockController.text),
+        stock: double.parse(_stockController.text),
         marca: _marcaController.text.isEmpty ? null : _marcaController.text,
         unidadMedida: _unidadMedida,
         iva: double.tryParse(_ivaController.text) ?? 0.0,
@@ -256,7 +258,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                         controller: _stockController,
                         label: "Stock",
                         icon: Icons.inventory,
-                        keyboardType: TextInputType.number,
+                        keyboardType: TextInputType.numberWithOptions(decimal: true),
                         validator: (value) =>
                             value!.isEmpty ? "Ingrese un stock" : null,
                       ),
