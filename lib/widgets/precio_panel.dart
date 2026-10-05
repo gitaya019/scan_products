@@ -299,9 +299,8 @@ class _VistaPrevia extends StatelessWidget {
           ),
           _Fila(
             etiqueta: 'Ganancia',
-            valor: '${formatCurrency(ganancia)}  (${
-              margen.toStringAsFixed(margen % 1 == 0 ? 0 : 1)
-            }%)',
+            valor:
+                '${formatCurrency(ganancia)}  (${margen.toStringAsFixed(margen % 1 == 0 ? 0 : 1)}%)',
             color: ganancia < 0 ? AppColors.danger : AppColors.success,
           ),
           const Divider(height: AppSpacing.lg),
@@ -436,8 +435,8 @@ class SelectorIVA extends StatelessWidget {
             final seleccionado = valor == tasa;
             return Expanded(
               child: Padding(
-                padding:
-                    EdgeInsets.only(right: tasa == Precios.tasasIVA.last ? 0 : 6),
+                padding: EdgeInsets.only(
+                    right: tasa == Precios.tasasIVA.last ? 0 : 6),
                 child: Semantics(
                   button: true,
                   selected: seleccionado,

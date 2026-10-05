@@ -105,7 +105,9 @@ class _VentaScreenState extends State<VentaScreen> {
   int _indiceDe(Producto producto) => _items.indexWhere((i) {
         if (producto.id != null) return i.producto.id == producto.id;
         final codigo = producto.codigo;
-        if (codigo != null && codigo.isNotEmpty) return i.producto.codigo == codigo;
+        if (codigo != null && codigo.isNotEmpty) {
+          return i.producto.codigo == codigo;
+        }
         return false;
       });
 
@@ -126,7 +128,8 @@ class _VentaScreenState extends State<VentaScreen> {
       final codigo = resultado.rawContent;
       if (codigo.isEmpty) return;
 
-      final producto = await DatabaseHelper.instance.getProductoByCodigo(codigo);
+      final producto =
+          await DatabaseHelper.instance.getProductoByCodigo(codigo);
       if (!mounted) return;
 
       if (producto == null) {
@@ -147,22 +150,25 @@ class _VentaScreenState extends State<VentaScreen> {
     }
   }
 
+  /// Pide la cantidad y agrega el producto al carrito.
+  ///
+  /// El `TextEditingController` lo crea y destruye el propio dialogo, no este
+  /// metodo. Antes lo creaba aqui y lo liberaba justo despues de que
+  /// `showDialog` devolviera, pero `showDialog` retorna en cuanto se llama
+  /// `Navigator.pop`: la ruta sigue montada durante su transicion de salida
+  /// (~150 ms) y el teclado sigue subiendo. Durante esa ventana el `TextField`
+  /// se reconstruye (cambia el `MediaQuery.viewInsets` al abrirse el teclado) y
+  /// lee un controller ya liberado, lo que en cascada arrastra
+  /// "'_dependents.isEmpty': is not true" y "'attached': is not true".
   Future<void> _pedirCantidad(Producto producto) async {
-    final controller =
-        TextEditingController(text: producto.ventaPorPeso ? '1.0' : '1');
-
     final resultado = await showDialog<double>(
       context: context,
-      builder: (ctx) => _DialogoCantidadVenta(
-        producto: producto,
-        controller: controller,
-      ),
+      builder: (ctx) => _DialogoCantidadVenta(producto: producto),
     );
 
-    controller.dispose();
-
     if (resultado != null && resultado > 0 && mounted) {
-      setState(() => _items.add(CarritoItem(producto: producto, cantidad: resultado)));
+      setState(() =>
+          _items.add(CarritoItem(producto: producto, cantidad: resultado)));
     }
   }
 
@@ -228,6 +234,13 @@ class _VentaScreenState extends State<VentaScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    // Con el teclado abierto el alto util se reduce a la mitad y la zona de
+    // escaneo (que ademas no sirve de nada mientras se escribe) se lleva por
+    // delante el espacio. Sin esto la `Column` de abajo no alcanza: el campo de
+    // busqueda, la zona de escaneo y la barra de cobro suman mas de lo que
+    // queda, y la `Expanded` del medio se va a cero.
+    final tecladoAbierto = MediaQuery.viewInsetsOf(context).bottom > 0;
+
     return AuroraBackground(
       dark: isDark,
       child: Scaffold(
@@ -243,18 +256,22 @@ class _VentaScreenState extends State<VentaScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md,
-                  0,
-                  AppSpacing.md,
-                  AppSpacing.sm,
+              if (!tecladoAbierto) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    0,
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                  ),
+                  child: _ZonaEscaneo(onEscanear: _escanear),
                 ),
-                child: _ZonaEscaneo(onEscanear: _escanear),
-              ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                child: _CampoBusqueda(controller: _searchController, onClear: _limpiarBusqueda),
+                child: _CampoBusqueda(
+                    controller: _searchController, onClear: _limpiarBusqueda),
               ),
               const SizedBox(height: AppSpacing.sm),
               Expanded(child: _cuerpo(theme, isDark)),
@@ -306,7 +323,8 @@ class _VentaScreenState extends State<VentaScreen> {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
       itemCount: _items.length,
       separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
       itemBuilder: (context, index) {
@@ -348,8 +366,10 @@ class _ZonaEscaneo extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                theme.colorScheme.secondary.withValues(alpha: isDark ? 0.22 : 0.14),
-                theme.colorScheme.primary.withValues(alpha: isDark ? 0.22 : 0.14),
+                theme.colorScheme.secondary
+                    .withValues(alpha: isDark ? 0.22 : 0.14),
+                theme.colorScheme.primary
+                    .withValues(alpha: isDark ? 0.22 : 0.14),
               ],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
@@ -375,10 +395,12 @@ class _ZonaEscaneo extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Escanear producto', style: theme.textTheme.titleLarge),
+                    Text('Escanear producto',
+                        style: theme.textTheme.titleLarge),
                     Text(
                       'Usa la camara para agregar rapido',
-                      style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12.5),
+                      style:
+                          theme.textTheme.bodyMedium?.copyWith(fontSize: 12.5),
                     ),
                   ],
                 ),
@@ -549,7 +571,8 @@ class _TarjetaCarrito extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       '${formatCurrency(producto.precio)} c/u',
-                      style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12.5),
+                      style:
+                          theme.textTheme.bodyMedium?.copyWith(fontSize: 12.5),
                     ),
                   ],
                 ),
@@ -584,7 +607,8 @@ class _TarjetaCarrito extends StatelessWidget {
                       if (item.esPorPeso)
                         Text(
                           producto.unidad,
-                          style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11),
+                          style: theme.textTheme.bodyMedium
+                              ?.copyWith(fontSize: 11),
                         ),
                       if (item.notaConversion != null)
                         Text(
@@ -613,7 +637,8 @@ class _TarjetaCarrito extends StatelessWidget {
                     style: theme.textTheme.titleLarge,
                   ),
                   Text('subtotal',
-                      style: theme.textTheme.bodyMedium?.copyWith(fontSize: 10.5)),
+                      style:
+                          theme.textTheme.bodyMedium?.copyWith(fontSize: 10.5)),
                 ],
               ),
             ],
@@ -750,33 +775,55 @@ class _MensajeVacio extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              height: 92,
-              width: 92,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.neonViolet.withValues(alpha: isDark ? 0.26 : 0.15),
-                    AppColors.neonCyan.withValues(alpha: isDark ? 0.18 : 0.11),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(AppShape.xl),
+    // El estado vacio (icono de 92 px + titulo + mensaje) mide cerca de 200 px.
+    // Con el teclado abierto el alto disponible baja a un puñado de pixeles y un
+    // `Center` con `Column` revienta con "A RenderFlex overflowed by N pixels":
+    // `Center` pasa constrains laxxos y la `Column` se queda con el alto que le
+    // dan, por mas chico que sea. `LayoutBuilder` + `ConstrainedBox` +
+    // `SingleChildScrollView` es el patron de "centrado pero desplazable":
+    // centrado mientras alcanza, con scroll cuando no.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    height: 92,
+                    width: 92,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.neonViolet
+                              .withValues(alpha: isDark ? 0.26 : 0.15),
+                          AppColors.neonCyan
+                              .withValues(alpha: isDark ? 0.18 : 0.11),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(AppShape.xl),
+                    ),
+                    child:
+                        Icon(icono, size: 42, color: theme.colorScheme.primary),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Text(titulo, style: theme.textTheme.titleLarge),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    mensaje,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
               ),
-              child: Icon(icono, size: 42, color: theme.colorScheme.primary),
             ),
-            const SizedBox(height: AppSpacing.md),
-            Text(titulo, style: theme.textTheme.titleLarge),
-            const SizedBox(height: AppSpacing.xxs),
-            Text(mensaje, textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
-          ],
+          ),
         ),
       ),
     );
@@ -787,28 +834,48 @@ class _MensajeVacio extends StatelessWidget {
 /// tecla tiene que recalcular cuanto se va a cobrar sin cerrar el dialogo.
 class _DialogoCantidadVenta extends StatefulWidget {
   final Producto producto;
-  final TextEditingController controller;
 
-  const _DialogoCantidadVenta({
-    required this.producto,
-    required this.controller,
-  });
+  const _DialogoCantidadVenta({required this.producto});
 
   @override
   State<_DialogoCantidadVenta> createState() => _DialogoCantidadVentaState();
 }
 
 class _DialogoCantidadVentaState extends State<_DialogoCantidadVenta> {
-  late final Producto producto = widget.producto;
-  late final TextEditingController controller = widget.controller;
+  /// Vive exactamente lo que vive el dialogo.
+  ///
+  /// Liberarlo en `dispose` y no cuando se cierra el dialogo es lo que evita
+  /// "A TextEditingController was used after being disposed": el `State` se
+  /// desmonta cuando la ruta termina su transicion de salida, no en el
+  /// instante del `Navigator.pop`.
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: widget.producto.ventaPorPeso ? '1.0' : '1',
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final accent = isDark ? AppColors.neonCyan : AppColors.neonViolet;
+    final producto = widget.producto;
 
     return AlertDialog(
+      // Con el teclado abierto el alto disponible se reduce a un puñado de
+      // pixeles y el contenido del `AlertDialog` se pasa. Sin `scrollable` el
+      // `Column` interno no tiene donde ceder y desborda.
+      scrollable: true,
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -834,7 +901,8 @@ class _DialogoCantidadVentaState extends State<_DialogoCantidadVenta> {
                 icon: Icons.inventory_2_rounded,
                 label:
                     'Stock ${formatCantidad(producto.stock, porPeso: producto.ventaPorPeso)}',
-                color: producto.stock <= 5 ? AppColors.warning : AppColors.success,
+                color:
+                    producto.stock <= 5 ? AppColors.warning : AppColors.success,
               ),
             ],
           ),
@@ -851,7 +919,7 @@ class _DialogoCantidadVentaState extends State<_DialogoCantidadVenta> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           TextField(
-            controller: controller,
+            controller: _controller,
             autofocus: true,
             keyboardType: producto.ventaPorPeso
                 ? const TextInputType.numberWithOptions(decimal: true)
@@ -872,7 +940,7 @@ class _DialogoCantidadVentaState extends State<_DialogoCantidadVenta> {
           const SizedBox(height: AppSpacing.md),
           // Vista previa del cobro: es lo que evita cobrar 600.000 por una
           // cebolla de 120 g cuando la libra esta a 5.000.
-          VistaPreviaCobro(producto: producto, controller: controller),
+          VistaPreviaCobro(producto: producto, controller: _controller),
         ],
       ),
       actionsPadding: const EdgeInsets.fromLTRB(
@@ -896,7 +964,7 @@ class _DialogoCantidadVentaState extends State<_DialogoCantidadVenta> {
           compact: true,
           expand: false,
           onPressed: () {
-            final valor = double.tryParse(controller.text) ?? 0;
+            final valor = double.tryParse(_controller.text) ?? 0;
             Navigator.pop(context, valor > 0 ? valor : null);
           },
         ),

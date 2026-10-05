@@ -20,11 +20,18 @@ class CategoriaSelector extends StatelessWidget {
   final FormFieldValidator<String>? validator;
   final String? helperText;
 
+  /// Categorias del catalogo propio (menu lateral), que se ofrecen ademas de las
+  /// predeterminadas. Vienen de la base de datos porque dependen de lo que el
+  /// usuario haya creado; sin ellas el selector solo conoceria la lista fija y
+  /// una categoria nueva seria invisible salvo escribiendola a mano.
+  final List<String> propias;
+
   const CategoriaSelector({
     super.key,
     required this.controller,
     this.validator,
     this.helperText,
+    this.propias = const [],
   });
 
   @override
@@ -41,8 +48,24 @@ class CategoriaSelector extends StatelessWidget {
   Widget _contenido(BuildContext context) {
     final theme = Theme.of(context);
     final textoActual = controller.text.trim();
-    final sugerencias = Categorias.buscar(textoActual, limite: 10);
-    final esConocida = Categorias.todas
+
+    // Las propias van primero en las sugerencias: son las que el usuario creo
+    // y las que quiere usar, mientras las predeterminadas son el catálogo fijo
+    // de referencia. Se deduplican sin distinguir mayusculas para que "quesos"
+    // no aparezca dos veces si ya esta en el catalogo.
+    final sugeridas = <String>[];
+    for (final c in [
+      ...propias,
+      ...Categorias.buscar(textoActual, limite: 10)
+    ]) {
+      final coincide = sugeridas.any(
+        (s) => s.toLowerCase() == c.toLowerCase(),
+      );
+      if (!coincide) sugeridas.add(c);
+    }
+    final sugerencias = sugeridas.take(10).toList();
+
+    final esConocida = [...Categorias.todas, ...propias]
         .any((c) => c.toLowerCase() == textoActual.toLowerCase());
 
     return Column(
@@ -72,7 +95,7 @@ class CategoriaSelector extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
-        _Secciones(controller: controller),
+        _Secciones(controller: controller, propias: propias),
         // Las sugerencias solo aparecen con texto escrito: con el campo vacio
         // no hay nada que filtrar y mostrar 10 categorias de arranque solo
         // empuja el resto del formulario hacia abajo.
@@ -100,13 +123,25 @@ class CategoriaSelector extends StatelessWidget {
 /// Secciones plegables con las categorias de cada una.
 class _Secciones extends StatelessWidget {
   final TextEditingController controller;
+  final List<String> propias;
 
-  const _Secciones({required this.controller});
+  const _Secciones({required this.controller, required this.propias});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final secciones = Categorias.porSeccion;
+
+    // Las propias se filtran contra las predeterminadas: repetir "Lacteos" en
+    // las dos listas solo haria ruido.
+    final predictas = Categorias.todas.map((c) => c.toLowerCase()).toSet();
+    final exclusivas =
+        propias.where((c) => !predictas.contains(c.toLowerCase())).toList();
+
+    final secciones = [
+      if (exclusivas.isNotEmpty)
+        (seccion: 'Mis categorias', categorias: exclusivas),
+      ...Categorias.porSeccion,
+    ];
 
     // `ExpansionTile` es un `ListTile`, y un `ListTile` pinta su fondo y sus
     // salpicaduras sobre el `Material` mas cercano. Como el formulario lo mete
@@ -116,7 +151,7 @@ class _Secciones extends StatelessWidget {
     return Material(
       type: MaterialType.transparency,
       child: ExpansionTile(
-        // `dense` y `tilePadding` en cero para que se alinee con el resto del
+        // `dense` y `tilePadding` en cero para que se aligne con el resto del
         // formulario en vez de quedar metido en una tarjeta mas.
         dense: true,
         tilePadding: EdgeInsets.zero,
@@ -130,7 +165,7 @@ class _Secciones extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.xs),
             Text(
-              'Ver ${Categorias.cantidadSecciones} secciones',
+              'Ver ${secciones.length} secciones',
               style: theme.textTheme.labelLarge?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
               ),

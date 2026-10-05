@@ -109,9 +109,7 @@ class _ReporteVentasScreenState extends State<ReporteVentasScreen> {
                         ),
                       ],
                     ],
-                  )
-                      .animate()
-                      .fadeIn(duration: AppDuration.medium),
+                  ).animate().fadeIn(duration: AppDuration.medium),
                 ),
         ),
       ),
@@ -128,7 +126,8 @@ class _Rotulo extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: AppSpacing.xxs),
-      child: Text(texto.toUpperCase(), style: Theme.of(context).textTheme.labelSmall),
+      child: Text(texto.toUpperCase(),
+          style: Theme.of(context).textTheme.labelSmall),
     );
   }
 }
@@ -159,8 +158,7 @@ class _TarjetaHero extends StatelessWidget {
               Icon(Icons.insights_rounded,
                   size: 16, color: theme.colorScheme.primary),
               const SizedBox(width: 6),
-              Text('INGRESOS DEL MES',
-                  style: theme.textTheme.labelSmall),
+              Text('INGRESOS DEL MES', style: theme.textTheme.labelSmall),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -308,7 +306,10 @@ class _TarjetaTop extends StatelessWidget {
             width: 50,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [color.withValues(alpha: 0.32), color.withValues(alpha: 0.12)],
+                colors: [
+                  color.withValues(alpha: 0.32),
+                  color.withValues(alpha: 0.12)
+                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),

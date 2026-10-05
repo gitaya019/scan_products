@@ -71,7 +71,8 @@ class Precios {
   }
 
   /// Base gravable de una venta con lineas de tasas distintas.
-  static double baseDeLineas(Iterable<({double subtotal, double tasa})> lineas) {
+  static double baseDeLineas(
+      Iterable<({double subtotal, double tasa})> lineas) {
     var total = 0.0;
     for (final linea in lineas) {
       total += precioSinIVA(linea.subtotal, linea.tasa);

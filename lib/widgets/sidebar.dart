@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../screens/categorias_screen.dart';
 import '../screens/historial_ventas_screen.dart';
 import '../screens/reporte_ventas_screen.dart';
 import '../theme/app_theme.dart';
@@ -43,7 +44,10 @@ class Sidebar extends StatelessWidget {
                     _MenuItem(
                       icon: Icons.point_of_sale_rounded,
                       label: 'Nueva Venta',
-                      gradient: const [AppColors.neonCyan, AppColors.neonViolet],
+                      gradient: const [
+                        AppColors.neonCyan,
+                        AppColors.neonViolet
+                      ],
                       onTap: () {
                         Navigator.pop(context);
                         onVenta?.call();
@@ -62,14 +66,22 @@ class Sidebar extends StatelessWidget {
                       onTap: () => _ir(context, const ReporteVentasScreen()),
                     ),
                     const SizedBox(height: AppSpacing.lg),
+                    _SeccionLabel('Catalogo'),
+                    _MenuItem(
+                      icon: Icons.category_rounded,
+                      label: 'Categorias',
+                      onTap: () => _ir(context, const CategoriasScreen()),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
                     _SeccionLabel('Apariencia'),
                     _ToggleTema(controller: themeController),
                     const SizedBox(height: AppSpacing.lg),
                     Center(
                       child: GlassChip(
                         icon: Icons.code_rounded,
-                        label: 'JACSOFT · v2.0.0',
-                        color: isDark ? AppColors.neonCyan : AppColors.neonViolet,
+                        label: 'JACSOFT · v2.1.0',
+                        color:
+                            isDark ? AppColors.neonCyan : AppColors.neonViolet,
                       ),
                     ),
                   ],
@@ -148,8 +160,7 @@ class _Encabezado extends StatelessWidget {
                       errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                     ),
                     const SizedBox(width: 6),
-                    Text('Colombia · COP',
-                        style: theme.textTheme.bodyMedium),
+                    Text('Colombia · COP', style: theme.textTheme.bodyMedium),
                   ],
                 ),
               ],
@@ -213,9 +224,8 @@ class _MenuItem extends StatelessWidget {
             height: 36,
             width: 36,
             decoration: BoxDecoration(
-              gradient: gradient == null
-                  ? null
-                  : LinearGradient(colors: gradient!),
+              gradient:
+                  gradient == null ? null : LinearGradient(colors: gradient!),
               color: gradient == null
                   ? accent.withValues(alpha: isDark ? 0.16 : 0.12)
                   : null,

@@ -24,7 +24,8 @@ Future<void> _montar(WidgetTester tester, Widget hijo) async {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       home: Scaffold(
-        body: SingleChildScrollView(child: Padding(
+        body: SingleChildScrollView(
+            child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: hijo,
         )),
@@ -55,7 +56,8 @@ void main() {
       expect(controller.text, 'Quesos');
     });
 
-    testWidgets('avisa que una categoria nueva se guardara asi', (tester) async {
+    testWidgets('avisa que una categoria nueva se guardara asi',
+        (tester) async {
       final controller = TextEditingController();
       addTearDown(controller.dispose);
 
@@ -71,7 +73,8 @@ void main() {
       expect(find.textContaining('Rancho'), findsWidgets);
     });
 
-    testWidgets('la seccion desplegable no dispara aserciones al abrirla', (tester) async {
+    testWidgets('la seccion desplegable no dispara aserciones al abrirla',
+        (tester) async {
       // El `ListTile` del `ExpansionTile` pinta sobre el `Material` mas
       // cercano. Sin el `Material` intermedio que lo envuelve, Flutter tira la
       // asercion "ListTile background color or ink splashes may be invisible".
@@ -117,7 +120,8 @@ void main() {
       expect(formKey.currentState!.validate(), isTrue);
     });
 
-    testWidgets('las categorias del catalogo se pueden elegir todas', (tester) async {
+    testWidgets('las categorias del catalogo se pueden elegir todas',
+        (tester) async {
       final controller = TextEditingController();
       addTearDown(controller.dispose);
 
@@ -244,7 +248,8 @@ void main() {
       expect(elegida, 'g');
     });
 
-    testWidgets('muestra la equivalencia para que se entienda el cobro', (tester) async {
+    testWidgets('muestra la equivalencia para que se entienda el cobro',
+        (tester) async {
       await _montar(
         tester,
         const UnidadVentaSelector(
@@ -258,7 +263,8 @@ void main() {
       expect(find.textContaining('1 g = '), findsOneWidget);
     });
 
-    testWidgets('sin conversion posible no muestra equivalencia', (tester) async {
+    testWidgets('sin conversion posible no muestra equivalencia',
+        (tester) async {
       await _montar(
         tester,
         const UnidadVentaSelector(
@@ -274,7 +280,8 @@ void main() {
   });
 
   group('PresentacionSelector', () {
-    testWidgets('las dos opciones quedan escritas, sin adivinar', (tester) async {
+    testWidgets('las dos opciones quedan escritas, sin adivinar',
+        (tester) async {
       bool porPeso = false;
 
       await _montar(
@@ -309,7 +316,8 @@ void main() {
           ventaPorPeso: true,
         );
 
-    testWidgets('muestra cuanto se cobra segun lo que se escribe', (tester) async {
+    testWidgets('muestra cuanto se cobra segun lo que se escribe',
+        (tester) async {
       final controller = TextEditingController(text: '120');
       addTearDown(controller.dispose);
 

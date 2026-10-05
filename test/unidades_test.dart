@@ -11,7 +11,8 @@ void main() {
 
     test('masa entre si: kg, g, lb', () {
       expect(Unidades.factor(origen: 'kg', destino: 'g'), 1000);
-      expect(Unidades.factor(origen: 'g', destino: 'kg'), closeTo(0.001, 1e-12));
+      expect(
+          Unidades.factor(origen: 'g', destino: 'kg'), closeTo(0.001, 1e-12));
       expect(
         Unidades.factor(origen: 'lb', destino: 'g'),
         closeTo(453.59237, 1e-9),
@@ -24,7 +25,8 @@ void main() {
 
     test('volumen entre si: L y mL', () {
       expect(Unidades.factor(origen: 'L', destino: 'mL'), 1000);
-      expect(Unidades.factor(origen: 'mL', destino: 'L'), closeTo(0.001, 1e-12));
+      expect(
+          Unidades.factor(origen: 'mL', destino: 'L'), closeTo(0.001, 1e-12));
     });
 
     test('masa contra volumen no tiene conversion', () {
@@ -132,7 +134,10 @@ void main() {
     });
 
     test('la lista de unidades cubre todo el catalogo', () {
-      expect(Unidades.todas, containsAll(['unidad', 'kg', 'g', 'lb', 'L', 'mL', 'paquete', 'caja']));
+      expect(
+          Unidades.todas,
+          containsAll(
+              ['unidad', 'kg', 'g', 'lb', 'L', 'mL', 'paquete', 'caja']));
     });
   });
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scan_products/models/producto_model.dart';
 import 'package:scan_products/screens/add_producto_screen.dart';
+import 'package:scan_products/screens/categorias_screen.dart';
 import 'package:scan_products/screens/edit_producto_screen.dart';
 import 'package:scan_products/screens/historial_ventas_screen.dart';
 import 'package:scan_products/screens/home_screen.dart';
@@ -56,10 +57,25 @@ Future<void> montar(
   // El primer frame dispara las consultas de `initState`.
   await tester.pump();
   // Las deja terminar contra la base real.
-  await _dejarCorrerLaBase(tester);
-  // Repinta ya con los datos cargados.
-  await tester.pump();
-  await tester.pump(const Duration(milliseconds: 400));
+  await esperarCarga(tester);
+  // Repinta ya con los datos cargados y deja morir las animaciones de entrada,
+  // que si no dejan temporizadores vivos y el test falla con `!timersPending`.
+  await tester.pump(const Duration(milliseconds: 900));
+}
+
+/// Espera a que la pantalla deje de mostrar su indicador de carga.
+///
+/// Cada pantalla encadena un numero distinto de consultas en `initState`, y cada
+/// una es E/C real sobre `sqflite_common_ffi`. Fijar un numero de vueltas a
+/// ciegas es fragil: con una sola, el test mira la pantalla todavia en el
+/// `CircularProgressIndicator`; con diez, el archivo entero se vuelve lento.
+/// Preguntar si ya cargo es exacto y sale en cuanto puede.
+Future<void> esperarCarga(WidgetTester tester, {int max = 20}) async {
+  for (var i = 0; i < max; i++) {
+    await _dejarCorrerLaBase(tester);
+    await tester.pump();
+    if (find.byType(CircularProgressIndicator).evaluate().isEmpty) return;
+  }
 }
 
 /// Deja que la E/C real de la base de datos se resuelva.
@@ -84,6 +100,10 @@ Future<List<int>> prepararProductos(WidgetTester tester) async {
     await db.delete('venta_detalles');
     await db.delete('ventas');
     await db.delete('productos');
+    // El catalogo se vuelve a llenar solo desde los productos que se siembran,
+    // asi que se limpia para partir de un estado conocido.
+    await db.delete('categorias');
+    await db.delete('marcas');
 
     for (final producto in [
       Producto(
@@ -124,12 +144,17 @@ Future<List<int>> prepararProductos(WidgetTester tester) async {
 }
 
 /// Vacia las tablas y deja el catalogo sin productos.
+///
+/// tambien limpia `categorias`: si no, la categoria que creo el test anterior
+/// sigue ahi y el estado vacio que se quiere comprobar no aparece nunca.
 Future<void> prepararVacio(WidgetTester tester) async {
   await tester.runAsync(() async {
     final db = await DatabaseHelper.instance.database;
     await db.delete('venta_detalles');
     await db.delete('ventas');
     await db.delete('productos');
+    await db.delete('categorias');
+    await db.delete('marcas');
   });
 }
 
@@ -241,6 +266,24 @@ void main() {
       expect(find.text('Reporte de ventas'), findsOneWidget);
       expect(find.text('INGRESOS DEL MES'), findsOneWidget);
     });
+
+    testWidgets('categorias', (tester) async {
+      await prepararProductos(tester);
+      await montar(tester, (_) => const CategoriasScreen());
+
+      expect(find.text('Categorias'), findsOneWidget);
+      // `prepararProductos` siembra dos productos en "Lacteos", asi que el
+      // catalogo debe traerla con su conteo y no como "Sin productos".
+      expect(find.text('Lacteos'), findsOneWidget);
+      expect(find.text('2 productos'), findsOneWidget);
+    });
+
+    testWidgets('categorias sin catalogo', (tester) async {
+      await prepararVacio(tester);
+      await montar(tester, (_) => const CategoriasScreen());
+
+      expect(find.text('Sin categorias'), findsOneWidget);
+    });
   });
 
   group('el tema claro renderiza lo mismo', () {
@@ -275,6 +318,17 @@ void main() {
       );
 
       expect(find.text('INGRESOS DEL MES'), findsOneWidget);
+    });
+
+    testWidgets('categorias claro', (tester) async {
+      await prepararProductos(tester);
+      await montar(
+        tester,
+        (_) => const CategoriasScreen(),
+        brillo: Brightness.light,
+      );
+
+      expect(find.text('Lacteos'), findsOneWidget);
     });
   });
 }

@@ -305,9 +305,8 @@ class GlassSurface extends StatelessWidget {
             ? const Color(0x14FFFFFF).withValues(alpha: 0.08 * k)
             : Colors.white.withValues(alpha: 0.74 * k));
 
-    final borderColor = isDark
-        ? const Color(0x24FFFFFF)
-        : accent.withValues(alpha: 0.18);
+    final borderColor =
+        isDark ? const Color(0x24FFFFFF) : accent.withValues(alpha: 0.18);
 
     Widget content = Container(
       padding: padding,
@@ -385,8 +384,7 @@ class NeonText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final degradado =
-        colors ?? accentGradient(Theme.of(context).colorScheme);
+    final degradado = colors ?? accentGradient(Theme.of(context).colorScheme);
 
     return ShaderMask(
       blendMode: BlendMode.srcIn,
@@ -591,9 +589,7 @@ class GlassIconButton extends StatelessWidget {
       height: size,
       width: size,
       decoration: BoxDecoration(
-        color: isDark
-            ? const Color(0x14FFFFFF)
-            : const Color(0xA8FFFFFF),
+        color: isDark ? const Color(0x14FFFFFF) : const Color(0xA8FFFFFF),
         borderRadius: BorderRadius.circular(AppShape.md),
         border: Border.all(
           color: color?.withValues(alpha: 0.4) ??
@@ -616,9 +612,8 @@ class GlassIconButton extends StatelessWidget {
       child: GestureDetector(
         onTap: onPressed,
         behavior: HitTestBehavior.opaque,
-        child: tooltip == null
-            ? button
-            : Tooltip(message: tooltip, child: button),
+        child:
+            tooltip == null ? button : Tooltip(message: tooltip, child: button),
       ),
     );
   }
@@ -750,12 +745,14 @@ class AppTheme {
         elevation: 0,
         width: 312,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.horizontal(right: Radius.circular(AppShape.xl)),
+          borderRadius:
+              BorderRadius.horizontal(right: Radius.circular(AppShape.xl)),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: isDark ? const Color(0xFF221C42) : const Color(0xFF1B1733),
+        backgroundColor:
+            isDark ? const Color(0xFF221C42) : const Color(0xFF1B1733),
         contentTextStyle: const TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.w500,
@@ -767,9 +764,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark
-            ? const Color(0x0FFFFFFF)
-            : const Color(0x8CFFFFFF),
+        fillColor: isDark ? const Color(0x0FFFFFFF) : const Color(0x8CFFFFFF),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: 17,
@@ -807,9 +802,8 @@ class AppTheme {
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? Colors.white
-              : muted,
+          (states) =>
+              states.contains(WidgetState.selected) ? Colors.white : muted,
         ),
         trackColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
-import '../data/categorias.dart';
 import '../models/marca.dart';
 import '../models/producto_model.dart';
 import '../services/database_helper.dart';
@@ -49,6 +48,9 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
   /// Marcas ya registradas, para el autocompletado.
   List<Marca> _marcas = [];
 
+  /// Categorias del catalogo propio (menu lateral), para las sugerencias.
+  List<String> _categorias = [];
+
   // Costo, precio e IVA los administra `PrecioPanel`, que los mantiene
   // sincronizados entre si y los reporta por aqui para armar el `Producto`.
   double _costo = 0;
@@ -60,6 +62,16 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
     super.initState();
     _medidaController.text = '1';
     _cargarMarcas();
+    _cargarCategorias();
+  }
+
+  /// Trae el catalogo de categorias. No hace falta sincronizar antes: lo que
+  /// importa es lo que hay en la tabla, y `asegurarCategoria` la va llenando a
+  /// medida que se guardan productos.
+  Future<void> _cargarCategorias() async {
+    final nombres = await DatabaseHelper.instance.getCategorias();
+    if (!mounted) return;
+    setState(() => _categorias = nombres);
   }
 
   /// Trae las marcas existentes y, de paso, registra las que ya estaban en los
@@ -159,7 +171,8 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
 
       setState(() => _codigoController.text = codigo);
 
-      final existente = await DatabaseHelper.instance.getProductoByCodigo(codigo);
+      final existente =
+          await DatabaseHelper.instance.getProductoByCodigo(codigo);
       if (existente != null && mounted) {
         await _ofrecerSumarStock(existente);
       }
@@ -199,9 +212,12 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
     final producto = Producto(
       nombre: _nombreController.text.trim(),
       codigo: _codigoController.text.trim(),
-      // La categoria se normaliza contra la lista de predeterminadas para que
-      // "quesos" y "Quesos" no queden como dos categorias distintas.
-      categoria: Categorias.normalizar(_categoriaController.text),
+      // La categoria se normaliza contra el catalogo propio y contra la lista
+      // de predeterminadas, para que "quesos" y "Quesos" no queden como dos
+      // categorias distintas. Solo lee: nada se escribe todavia, asi que un
+      // fallo posterior no deja una categoria huerfana.
+      categoria: await DatabaseHelper.instance
+          .normalizarCategoria(_categoriaController.text),
       precio: _precio,
       costo: _costo,
       peso: double.tryParse(_medidaController.text) ?? 1.0,
@@ -224,6 +240,11 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
       if (producto.marca != null) {
         await DatabaseHelper.instance.asegurarMarca(producto.marca!);
       }
+      // Igual que la marca: la categoria escrita a mano entra al catalogo del
+      // menu lateral para que despues se pueda renombrar o borrar desde ahi.
+      if (producto.categoria.isNotEmpty) {
+        await DatabaseHelper.instance.asegurarCategoria(producto.categoria);
+      }
       if (!mounted) return;
       Navigator.pop(context);
     } catch (_) {
@@ -231,7 +252,8 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
       setState(() => _guardando = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No se pudo guardar. Revisa que el codigo no este repetido.'),
+          content: Text(
+              'No se pudo guardar. Revisa que el codigo no este repetido.'),
         ),
       );
     }
@@ -273,8 +295,9 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                         label: 'Nombre del producto',
                         icon: Icons.shopping_basket_outlined,
                         textCapitalization: TextCapitalization.sentences,
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Ingresa un nombre' : null,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Ingresa un nombre'
+                            : null,
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       Row(
@@ -295,7 +318,9 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                               icon: Icons.qr_code_scanner_rounded,
                               tooltip: 'Escanear codigo',
                               size: 52,
-                              color: isDark ? AppColors.neonCyan : AppColors.neonViolet,
+                              color: isDark
+                                  ? AppColors.neonCyan
+                                  : AppColors.neonViolet,
                               onPressed: _escanear,
                             ),
                           ),
@@ -304,9 +329,11 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                       const SizedBox(height: AppSpacing.sm),
                       CategoriaSelector(
                         controller: _categoriaController,
-                                                validator: (v) => (v == null || v.isEmpty || v.trim().isEmpty)
-                            ? 'Ingresa una categoria'
-                            : null,
+                        propias: _categorias,
+                        validator: (v) =>
+                            (v == null || v.isEmpty || v.trim().isEmpty)
+                                ? 'Ingresa una categoria'
+                                : null,
                       ),
                     ],
                   ),
@@ -361,7 +388,7 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                       MarcaSelector(
                         controller: _marcaController,
                         marcas: _marcas,
-                                                onCrear: _crearMarca,
+                        onCrear: _crearMarca,
                       ),
                     ],
                   ),
@@ -401,7 +428,8 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                                 unidadMedida: _unidadMedida,
                               ),
                               icon: _iconoMedida,
-                              keyboardType: const TextInputType.numberWithOptions(
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
                                 decimal: true,
                               ),
                               helperText: 'Contenido por unidad de venta',
@@ -415,15 +443,18 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                               // balanza, que puede ser distinta.
                               label: labelStock(
                                 porPeso: _ventaPorPeso,
-                                unidadMedida:
-                                    _ventaPorPeso ? _unidadVenta : _unidadMedida,
+                                unidadMedida: _ventaPorPeso
+                                    ? _unidadVenta
+                                    : _unidadMedida,
                               ),
                               icon: Icons.inventory_rounded,
                               keyboardType: _ventaPorPeso
-                                  ? const TextInputType.numberWithOptions(decimal: true)
+                                  ? const TextInputType.numberWithOptions(
+                                      decimal: true)
                                   : TextInputType.number,
-                              validator: (v) =>
-                                  (v == null || v.trim().isEmpty) ? 'Ingresa el stock' : null,
+                              validator: (v) => (v == null || v.trim().isEmpty)
+                                  ? 'Ingresa el stock'
+                                  : null,
                             ),
                           ),
                         ],
@@ -513,9 +544,8 @@ class _DropdownUnidad extends StatelessWidget {
         prefixIcon: const Icon(Icons.straighten_rounded, size: 20),
       ),
       style: theme.textTheme.titleMedium,
-      items: items
-          .map((u) => DropdownMenuItem(value: u, child: Text(u)))
-          .toList(),
+      items:
+          items.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
       onChanged: onChanged,
     );
   }

@@ -63,7 +63,8 @@ void main() {
   group('labelStock', () {
     test('distingue por peso y por unidad', () {
       expect(labelStock(porPeso: true, unidadMedida: 'kg'), 'Stock (kg)');
-      expect(labelStock(porPeso: false, unidadMedida: 'kg'), 'Stock (unidades)');
+      expect(
+          labelStock(porPeso: false, unidadMedida: 'kg'), 'Stock (unidades)');
     });
   });
 

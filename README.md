@@ -14,6 +14,7 @@ sin conexión: los datos viven en el dispositivo.
 - 🔍 Búsqueda en vivo por nombre o código
 - 🗂️ ~80 categorías predeterminadas de tienda de barrio, agrupadas en 10 secciones
 - 🏷️ Marcas reutilizables con autocompletado y creación en línea
+- 📚 Catálogo de categorías administrable desde el menú lateral: crear, renombrar (mueve los productos) y borrar
 - ⚠️ Filtro de stock bajo con contador en la barra superior
 - ➕ Alta rápida de stock desde la tarjeta del producto
 - ✏️ Crear, editar y eliminar productos
@@ -121,7 +122,14 @@ usar una base en memoria sin tocar disco.
 `test/screens_test.dart` monta cada pantalla contra la base sembrada, en tema
 oscuro y claro, para cazar desbordamientos de layout y lecturas incorrectas del
 `ColorScheme`. No usan `pumpAndSettle`: el fondo animado nunca llega a un estado
-estable, así que el pump se hace con un número fijo de frames.
+estable, así que el pump se hace a mano y `esperarCarga()` espera a que el
+indicador de carga desaparezca en vez de contar vueltas a ciegas.
+
+`test/dialogo_cantidad_test.dart` cubre el diálogo de cantidad con el teclado
+abierto: su `TextEditingController` pertenece al `State` del diálogo, no a quien
+lo abre. `showDialog` devuelve en el `Navigator.pop`, pero la ruta sigue montada
+durante su transición de salida, y si el llamador libera el controller ahí el
+`TextField` lo lee ya muerto.
 
 La matemática de negocio tiene su propia suite, sin widgets:
 
@@ -131,6 +139,7 @@ La matemática de negocio tiene su propia suite, sin widgets:
 | `test/unidades_test.dart` | Conversión entre kg, g, lb, L y mL |
 | `test/carrito_test.dart` | Total de línea con unidades distintas |
 | `test/categorias_test.dart` | Búsqueda y normalización de categorías |
+| `test/categorias_crud_test.dart` | Catálogo: renombrar en cascada, borrar con productos |
 | `test/venta_test.dart` | Flujo de venta completo, de punta a punta |
 | `test/widgets_test.dart` | Selectores de categoría, marca y unidad |
 
@@ -148,20 +157,21 @@ lib/
 │   └── categorias.dart            ~80 categorías predeterminadas, en secciones
 ├── models/                        Producto, Venta, VentaDetalle, CarritoItem, Marca
 ├── services/
-│   └── database_helper.dart       SQLite (4 tablas, versión 8)
+│   └── database_helper.dart       SQLite (5 tablas, versión 9)
 ├── screens/
 │   ├── home_screen.dart           Inventario
 │   ├── add_producto_screen.dart   Alta de producto
 │   ├── edit_producto_screen.dart  Edición y eliminación
 │   ├── venta_screen.dart          Punto de venta
 │   ├── historial_ventas_screen.dart
-│   └── reporte_ventas_screen.dart
+│   ├── reporte_ventas_screen.dart
+│   └── categorias_screen.dart     CRUD del catálogo de categorías
 ├── utils/
 │   ├── formatters.dart            Moneda COP, cantidades y fechas
 │   ├── precios.dart               IVA incluido y margen de ganancia
 │   └── unidades.dart              Conversión entre kg, g, lb, L y mL
 └── widgets/
-    ├── sidebar.dart               Menú lateral + toggle de tema
+    ├── sidebar.dart               Menú lateral + navegación + toggle de tema
     ├── producto_text_field.dart   Campo base
     ├── precio_field.dart          Campo de precio COP
     ├── precio_panel.dart          Costo + margen + precio + IVA, en vivo
@@ -175,19 +185,25 @@ lib/
 
 ## 🗄️ Base de datos
 
-SQLite, 4 tablas, versión 8. Las migraciones en `_onUpgrade` van de v3 a v8 con
+SQLite, 5 tablas, versión 9. Las migraciones en `_onUpgrade` van de v3 a v9 con
 `ALTER TABLE`; `_createDB` debe mantenerse sincronizada con `_onUpgrade`.
 
 | Tabla | Contenido |
 |---|---|
 | `productos` | id, nombre, codigo (único), categoria, precio, costo, peso, stock, marca, unidad_medida, unidad_venta, iva, venta_por_peso |
 | `marcas` | id, nombre (único), created_at — alimenta el autocompletado |
+| `categorias` | id, nombre (único), created_at — catálogo administrable |
 | `ventas` | id, total, fecha, estado (`completada` / `anulada`) |
 | `venta_detalles` | líneas de cada venta, con nombre/código/precio como snapshot |
 
-`productos.marca` sigue siendo texto a propósito: un producto escrito a mano no
-depende de que exista la fila en `marcas`. Esa tabla solo sugiere y evita
-escribir la misma marca dos veces.
+`productos.marca` y `productos.categoria` siguen siendo texto a propósito: un
+producto escrito a mano no depende de que exista la fila en `marcas` ni en
+`categorias`. Esas tablas solo sugieren y evitan escribir lo mismo dos veces.
+
+La diferencia es que `categorias` sí se administra: desde el menú lateral
+**Categorías** se crea, se renombra y se borra. Renombrar mueve en cascada los
+productos que la usan; borrar está bloqueado mientras haya productos
+apuntando a ella, porque su texto quedaría sin ninguna parte donde aparecer.
 
 ---
 

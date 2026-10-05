@@ -73,7 +73,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _filtrar() => setState(() {});
 
-  void _alternarStockBajo() => setState(() => _stockBajoActivo = !_stockBajoActivo);
+  void _alternarStockBajo() =>
+      setState(() => _stockBajoActivo = !_stockBajoActivo);
 
   Future<void> _escanear() async {
     try {
@@ -90,7 +91,8 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _agregarStock(Producto producto) async {
     final cantidad = await showDialog<double>(
       context: context,
-      builder: (ctx) => _DialogoCantidad(producto: producto, modo: _DialogoCantidadModo.sumar),
+      builder: (ctx) => _DialogoCantidad(
+          producto: producto, modo: _DialogoCantidadModo.sumar),
     );
 
     if (cantidad != null && cantidad > 0) {
@@ -206,7 +208,8 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ),
                 ),
-                const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.md)),
+                const SliverToBoxAdapter(
+                    child: SizedBox(height: AppSpacing.md)),
                 if (_cargando)
                   const SliverFillRemaining(
                     hasScrollBody: false,
@@ -607,7 +610,8 @@ class _TarjetaProducto extends StatelessWidget {
                           producto.categoria,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12.5),
+                          style: theme.textTheme.bodyMedium
+                              ?.copyWith(fontSize: 12.5),
                         ),
                       ],
                     ],
@@ -621,7 +625,9 @@ class _TarjetaProducto extends StatelessWidget {
                       text: formatCurrency(producto.precio),
                       style: theme.textTheme.titleLarge,
                     ),
-                    Text('precio', style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11)),
+                    Text('precio',
+                        style:
+                            theme.textTheme.bodyMedium?.copyWith(fontSize: 11)),
                   ],
                 ),
               ],
@@ -635,15 +641,14 @@ class _TarjetaProducto extends StatelessWidget {
                   GlassChip(
                     icon: Icons.branding_watermark_rounded,
                     label: producto.marca!,
-                    color: isDark ? AppColors.neonMagenta : AppColors.neonViolet,
+                    color:
+                        isDark ? AppColors.neonMagenta : AppColors.neonViolet,
                   ),
                 GlassChip(
                   icon: producto.ventaPorPeso
                       ? Icons.scale_rounded
                       : Icons.inventory_2_rounded,
-                  label: producto.ventaPorPeso
-                      ? producto.unidad
-                      : 'Por unidad',
+                  label: producto.ventaPorPeso ? producto.unidad : 'Por unidad',
                   color: theme.colorScheme.secondary,
                 ),
                 if (producto.iva > 0)
@@ -800,9 +805,7 @@ class _EstadoVacio extends StatelessWidget {
           ),
         ],
       ),
-    )
-        .animate()
-        .fadeIn(duration: AppDuration.medium);
+    ).animate().fadeIn(duration: AppDuration.medium);
   }
 }
 
@@ -873,7 +876,8 @@ class _DialogoCantidadState extends State<_DialogoCantidad> {
     super.initState();
     _controller = TextEditingController(
       text: widget.modo == _DialogoCantidadModo.restar
-          ? formatCantidad(widget.producto.stock, porPeso: widget.producto.ventaPorPeso)
+          ? formatCantidad(widget.producto.stock,
+              porPeso: widget.producto.ventaPorPeso)
           : (widget.producto.ventaPorPeso ? '1.0' : '1'),
     );
   }
@@ -991,7 +995,8 @@ class _DialogoCantidadState extends State<_DialogoCantidad> {
           onPressed: () => Navigator.pop(context),
           child: Text(
             'Cancelar',
-            style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
+            style: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
           ),
         ),
         NeonButton(
@@ -1042,7 +1047,8 @@ class _ConfirmDialog extends StatelessWidget {
           onPressed: () => Navigator.pop(context, false),
           child: Text(
             'Cancelar',
-            style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
+            style: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
           ),
         ),
         FilledButton(

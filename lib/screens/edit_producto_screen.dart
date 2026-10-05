@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../data/categorias.dart';
 import '../models/marca.dart';
 import '../models/producto_model.dart';
 import '../services/database_helper.dart';
@@ -44,6 +43,9 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
   /// Marcas ya registradas, para el autocompletado.
   List<Marca> _marcas = [];
 
+  /// Categorias del catalogo propio (menu lateral).
+  List<String> _categorias = [];
+
   // Costo, precio e IVA los administra `PrecioPanel`.
   double _costo = 0;
   double _precio = 0;
@@ -79,6 +81,14 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
     _ventaPorPeso = p.ventaPorPeso;
 
     _cargarMarcas();
+    _cargarCategorias();
+  }
+
+  /// Catalogo propio de categorias, para las sugerencias del selector.
+  Future<void> _cargarCategorias() async {
+    final nombres = await DatabaseHelper.instance.getCategorias();
+    if (!mounted) return;
+    setState(() => _categorias = nombres);
   }
 
   Future<void> _cargarMarcas() async {
@@ -166,7 +176,10 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
       id: widget.producto.id,
       nombre: _nombreController.text.trim(),
       codigo: _codigoController.text.trim(),
-      categoria: Categorias.normalizar(_categoriaController.text),
+      // Igual que al crear: el nombre canonico sale del catalogo propio si esta
+      // ahi, y de las predeterminadas si no.
+      categoria: await DatabaseHelper.instance
+          .normalizarCategoria(_categoriaController.text),
       precio: _precio,
       costo: _costo,
       peso: double.tryParse(_medidaController.text) ?? 1.0,
@@ -185,6 +198,11 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
       if (producto.marca != null) {
         await DatabaseHelper.instance.asegurarMarca(producto.marca!);
       }
+      // Al editar tambien puede cambiar la categoria, asi que entra al
+      // catalogo igual que al crear.
+      if (producto.categoria.isNotEmpty) {
+        await DatabaseHelper.instance.asegurarCategoria(producto.categoria);
+      }
       if (!mounted) return;
       Navigator.pop(context);
     } catch (_) {
@@ -192,7 +210,8 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
       setState(() => _guardando = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No se pudo guardar. Revisa que el codigo no este repetido.'),
+          content: Text(
+              'No se pudo guardar. Revisa que el codigo no este repetido.'),
         ),
       );
     }
@@ -264,8 +283,9 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                         label: 'Nombre del producto',
                         icon: Icons.shopping_basket_outlined,
                         textCapitalization: TextCapitalization.sentences,
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Ingresa un nombre' : null,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Ingresa un nombre'
+                            : null,
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       ProductoTextField(
@@ -277,9 +297,11 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                       const SizedBox(height: AppSpacing.sm),
                       CategoriaSelector(
                         controller: _categoriaController,
-                                                validator: (v) => (v == null || v.isEmpty || v.trim().isEmpty)
-                            ? 'Ingresa una categoria'
-                            : null,
+                        propias: _categorias,
+                        validator: (v) =>
+                            (v == null || v.isEmpty || v.trim().isEmpty)
+                                ? 'Ingresa una categoria'
+                                : null,
                       ),
                     ],
                   ),
@@ -311,7 +333,8 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                         ),
                         style: theme.textTheme.titleMedium,
                         items: _unidades
-                            .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+                            .map((u) =>
+                                DropdownMenuItem(value: u, child: Text(u)))
                             .toList(),
                         onChanged: (v) {
                           if (v == null) return;
@@ -337,7 +360,7 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                       MarcaSelector(
                         controller: _marcaController,
                         marcas: _marcas,
-                                                onCrear: _crearMarca,
+                        onCrear: _crearMarca,
                       ),
                     ],
                   ),
@@ -371,7 +394,8 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                                 unidadMedida: _unidadMedida,
                               ),
                               icon: _iconoMedida,
-                              keyboardType: const TextInputType.numberWithOptions(
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
                                 decimal: true,
                               ),
                             ),
@@ -382,15 +406,18 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                               controller: _stockController,
                               label: labelStock(
                                 porPeso: _ventaPorPeso,
-                                unidadMedida:
-                                    _ventaPorPeso ? _unidadVenta : _unidadMedida,
+                                unidadMedida: _ventaPorPeso
+                                    ? _unidadVenta
+                                    : _unidadMedida,
                               ),
                               icon: Icons.inventory_rounded,
                               keyboardType: _ventaPorPeso
-                                  ? const TextInputType.numberWithOptions(decimal: true)
+                                  ? const TextInputType.numberWithOptions(
+                                      decimal: true)
                                   : TextInputType.number,
-                              validator: (v) =>
-                                  (v == null || v.trim().isEmpty) ? 'Ingresa el stock' : null,
+                              validator: (v) => (v == null || v.trim().isEmpty)
+                                  ? 'Ingresa el stock'
+                                  : null,
                             ),
                           ),
                         ],

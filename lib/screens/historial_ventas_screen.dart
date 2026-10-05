@@ -194,9 +194,7 @@ class _TarjetaVenta extends StatelessWidget {
                       NeonText(
                         text: '${formatCurrency(venta.total)} COP',
                         style: theme.textTheme.titleMedium,
-                        colors: anulada
-                            ? [Colors.grey, Colors.grey]
-                            : null,
+                        colors: anulada ? [Colors.grey, Colors.grey] : null,
                       ),
                       if (anulada) ...[
                         const SizedBox(width: AppSpacing.xs),
@@ -345,7 +343,8 @@ class _DialogoDetalle extends StatelessWidget {
                               // del precio: "0,26 lb x 5.000" frente a
                               // "120 g x 11".
                               '${d.ventaPorPeso && (d.unidadVenta ?? d.unidadMedida) != null ? ' ${d.unidadVenta ?? d.unidadMedida}' : ''}',
-                              style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12.5),
+                              style: theme.textTheme.bodyMedium
+                                  ?.copyWith(fontSize: 12.5),
                             ),
                           ],
                         ),
@@ -437,7 +436,8 @@ class _HistorialVacio extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    AppColors.neonViolet.withValues(alpha: isDark ? 0.26 : 0.15),
+                    AppColors.neonViolet
+                        .withValues(alpha: isDark ? 0.26 : 0.15),
                     AppColors.neonCyan.withValues(alpha: isDark ? 0.18 : 0.11),
                   ],
                   begin: Alignment.topLeft,

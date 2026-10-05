@@ -5,9 +5,10 @@
 Flutter inventory + point-of-sale app (Spanish, Colombian market, COP).
 
 - **Entrypoint:** `lib/main.dart` → `ScanProductsApp` → `HomeScreen`
-- **Database:** SQLite via `sqflite`, **version 8**, 4 tables:
+- **Database:** SQLite via `sqflite`, **version 9**, 5 tables:
   - `productos` (id, nombre, codigo UNIQUE, categoria, precio, costo, peso, stock, marca, unidad_medida, unidad_venta, iva, venta_por_peso)
   - `marcas` (id, nombre UNIQUE, created_at)
+  - `categorias` (id, nombre UNIQUE, created_at)
   - `ventas` (id, total, fecha ISO, estado `completada`|`anulada`)
   - `venta_detalles` (venta_id FK CASCADE, producto_id, nombre, codigo, precio_unitario, cantidad, subtotal, unidad_medida, unidad_venta, venta_por_peso, iva)
 - **Orientation:** portrait only
@@ -47,6 +48,18 @@ ancestor, and `GlassSurface` is a `DecoratedBox` with a color — without the
 wrapper Flutter asserts *"ListTile background color or ink splashes may be
 invisible"*.
 
+**Keyboard rule:** any screen whose layout must survive the IME shrinking the
+viewport needs all three of these, or it will overflow with the keyboard up:
+
+1. Dialogs that hold a `TextField` pass `scrollable: true` to `AlertDialog`.
+2. A `Center` + `Column` empty state gets `LayoutBuilder` +
+   `ConstrainedBox(minHeight: constraints.maxHeight)` + `SingleChildScrollView`
+   — centred while it fits, scrollable when it doesn't. A bare `Center` passes
+   *loose* constraints, so the `Column` takes whatever height is offered (even
+   38 px) and its ~200 px of children overflow.
+3. Fixed-height chrome that stops being useful when the keyboard is up (the POS
+   scan zone) is hidden while `MediaQuery.viewInsetsOf(context).bottom > 0`.
+
 **Rule:** never hardcode colors, radii, or spacing in a screen. Use the tokens
 above so light/dark stay coherent.
 
@@ -62,17 +75,18 @@ above so light/dark stay coherent.
 - **`lib/screens/venta_screen.dart`** — POS: scan/search, cart, quantity dialog with live total, checkout
 - **`lib/screens/historial_ventas_screen.dart`** — sale history, detail dialog with tax breakdown, void (restores stock)
 - **`lib/screens/reporte_ventas_screen.dart`** — day/week/month totals, IVA breakdown, best-selling product
+- **`lib/screens/categorias_screen.dart`** — category catalog CRUD from the sidebar: search, create, rename (cascades to products), delete (blocked while in use)
 - **`lib/models/`** — `Producto`, `Venta`, `VentaDetalle`, `CarritoItem`, `Marca` (all with `toMap()`/`fromMap()`)
 - **`lib/services/database_helper.dart`** — singleton, lazy init, cached `Database`
 - **`lib/utils/formatters.dart`** — `formatCurrency()`, `parseCurrency()`, `formatCantidad()`, `labelCantidad()`, `labelStock()`, `formatFecha()`
 - **`lib/utils/precios.dart`** — business math: `precioSinIVA`, `ivaIncluido`, `precioDesdeCosto`, `margenDesdePrecios`, `ivaDeLineas`, `redondearMoneda`, `parsePorcentaje`
 - **`lib/utils/unidades.dart`** — unit conversion table (masa/volumen/conteo)
-- **`lib/widgets/sidebar.dart`** — drawer + theme switch
+- **`lib/widgets/sidebar.dart`** — drawer + theme switch + navigation (including Categorias)
 - **`lib/widgets/producto_text_field.dart`** — base text field
 - **`lib/widgets/precio_field.dart`** — COP price field, reformats on focus loss
 - **`lib/widgets/precio_panel.dart`** — bidirectional costo ↔ margen ↔ precio with live preview
 - **`lib/widgets/presentacion_selector.dart`** — `PresentacionSelector` (units vs weight) + `UnidadVentaSelector` (balance unit)
-- **`lib/widgets/categoria_selector.dart`** — free-text field + preset sections
+- **`lib/widgets/categoria_selector.dart`** — free-text field + preset sections + the shop's own catalog (`propias`)
 - **`lib/widgets/marca_selector.dart`** — brand autocomplete + inline creation
 - **`lib/widgets/vista_previa_cobro.dart`** — live charge preview in the quantity dialog
 
@@ -87,6 +101,7 @@ above so light/dark stay coherent.
 - **The "precio base" the user types is the purchase COST.** Margin applies over cost (`costo × (1 + margen/100)`). `PrecioPanel` binds both directions with a `_sincronizando` guard so typing a margin doesn't cascade or move the cursor.
 - **Categories:** free text with ~80 presets as shortcuts. `Categorias.normalizar()` maps a case-insensitive match back to the canonical spelling so "quesos" and "Quesos" aren't two categories.
 - **Brands:** `productos.marca` stays TEXT on purpose — a hand-typed product must not depend on a `marcas` row existing. The table only feeds autocomplete and inline creation; `sincronizarMarcasDesdeProductos()` back-fills from existing products.
+- **The category catalog mirrors the brand one** (`categorias`, v9): `productos.categoria` is TEXT for the same reason, the table feeds the sidebar CRUD plus the selector's `propias` suggestions, and `sincronizarCategoriasDesdeProductos()` back-fills. `renombrarCategoria()` cascades to `productos.categoria` (compared `COLLATE NOCASE`, because a pre-catalog row can hold a different spelling) inside one transaction; `eliminarCategoria()` returns `false` without touching anything while products still use it. `normalizarCategoria()` is the **read-only** canonical lookup used before saving, so a failed save can't leave an orphan row.
 - **Currency:** COP, `NumberFormat.decimalPattern('es_CO')`, rounded, no symbol — `currency()` with `symbol: ''` leaves a trailing space
 
 ## Conventions
@@ -148,7 +163,7 @@ The remaining warnings are expected and not ours to fix:
 |---|---|
 | `flutter pub get` | Install dependencies |
 | `flutter analyze` | Must stay at **0 issues**. `analysis_options.yaml` adds 10 extra lints beyond `flutter_lints` |
-| `flutter test` | 142 tests |
+| `flutter test` | 175 tests |
 | `flutter run` | Run on device |
 | `flutter build apk --release` | Android release build |
 | `flutter build ios` | iOS release build |
@@ -162,12 +177,14 @@ The remaining warnings are expected and not ours to fix:
 | `test/modelos_test.dart` | `toMap`/`fromMap` round-trips, defaults, null handling |
 | `test/database_test.dart` | CRUD, search, stock deltas, sales, void, summary — against in-memory FFI |
 | `test/widget_test.dart` | App boots, both themes build |
-| `test/screens_test.dart` | Every screen renders against a seeded DB in both themes — catches layout overflows and bad `ColorScheme` reads. Add/edit use a 6000/7000 px window so the whole form lays out without scrolling |
+| `test/screens_test.dart` | Every screen renders against a seeded DB in both themes — catches layout overflows and bad `ColorScheme` reads. Add/edit use a 6000/7000 px window so the whole form lays out without scrolling. `montar()` waits for the loading spinner to disappear via `esperarCarga()`, never a fixed number of pumps |
 | `test/venta_test.dart` | 6 end-to-end sale tests: search → add → charge → confirmation → Listo, IVA not altering the total, stock decrement, persisted IVA |
+| `test/dialogo_cantidad_test.dart` | The quantity dialog's controller lifecycle and its layout with the keyboard up. Reproduces the device crash by pumping the route's exit transition with `viewInsets` set — a plain pop alone does **not** trigger it |
 | `test/precios_test.dart` | IVA-included math, margin over cost, rounding, `parsePorcentaje` |
 | `test/unidades_test.dart` | kg/g/lb/L/mL factors, `convertir`, `equivalencia`, unit classification |
 | `test/carrito_test.dart` | Line totals with distinct price/weighing units, incompatible-unit fallbacks |
 | `test/categorias_test.dart` | Preset list integrity, search, `normalizar` |
+| `test/categorias_crud_test.dart` | Category catalog: dedup by case, rename cascade (incl. mismatched spellings), delete blocked while in use, read-only `normalizarCategoria`, back-fill sync |
 | `test/widgets_test.dart` | `CategoriaSelector`, `MarcaSelector`, `UnidadVentaSelector`, `PresentacionSelector`, `VistaPreviaCobro` |
 
 **Critical:** `sqflite` does not work headless. Use `sqflite_common_ffi` via
@@ -199,6 +216,30 @@ Removed as unused: `excel`, `open_file`, `share_plus`, `permission_handler`, `fi
 - `barcode_scan2` needs no extra iOS config beyond `NSCameraUsageDescription` (already in `Info.plist`)
 - Only Android has native code (`MainActivity.kt`); other platforms are stock Flutter scaffolding
 - No CI/CD in the repo
+
+## Gotcha: a dialog's controller belongs to the dialog
+
+`showDialog` returns as soon as `Navigator.pop` is called — the route and its
+whole subtree stay **mounted** for the rest of the exit transition (~150 ms),
+and the IME keeps animating, so `MediaQuery.viewInsets` changes and the subtree
+rebuilds. A controller created by the caller and disposed on the line after
+`await showDialog(...)` is therefore dead while `TextField` and
+`ValueListenableBuilder` still read it:
+
+```
+A TextEditingController was used after being disposed.
+A RenderFlex overflowed by N pixels on the bottom.        <- cascading damage
+'_dependents.isEmpty': is not true.                       <- Element.unmount
+'attached': is not true.                                  <- RenderObject after detach
+```
+
+Fix: build the controller in the dialog's `State.initState` and release it in
+`dispose()`, so its lifetime is exactly the element's. See
+`_DialogoCantidadVenta` in `venta_screen.dart`.
+
+Only the *keyboard* case throws. Popping the dialog with the test's default zero
+insets reproduces nothing — `test/dialogo_cantidad_test.dart` sets
+`tester.view.viewInsets` and pumps the transition for that reason.
 
 ## Editing gotcha
 

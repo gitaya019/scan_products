@@ -1,11 +1,26 @@
-﻿import 'package:path/path.dart';
+import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../data/categorias.dart';
 import '../models/carrito_item.dart';
 import '../models/producto_model.dart';
 import '../models/venta_detalle.dart';
 import '../models/venta_model.dart';
 import '../utils/precios.dart';
+
+/// Error de una operacion sobre el catalogo de categorias.
+///
+/// Se lanza, y no se devuelve como `null`, cuando el mensaje importa para el
+/// usuario: renombrar "Lacteos" a "Quesos" cuando "Quesos" ya existe tiene que
+/// decirselo, no fallar en silencio.
+class EstadoCategoriaException implements Exception {
+  final String mensaje;
+
+  const EstadoCategoriaException(this.mensaje);
+
+  @override
+  String toString() => mensaje;
+}
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -38,7 +53,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -63,7 +78,24 @@ class DatabaseHelper {
       )
     ''');
     await _createMarcas(db);
+    await _createCategorias(db);
     await _createVentasTables(db);
+  }
+
+  /// Categorias registradas, para administrarlas desde el menu lateral.
+  ///
+  /// Mismo criterio que `marcas`: `productos.categoria` sigue siendo TEXT para
+  /// que un producto escrito a mano no dependa de que exista la fila. La tabla
+  /// es el catalogo: alimenta el autocompletado del formulario y permite
+  /// renombrar o borrar una categoria sin recorrer todos los productos.
+  Future<void> _createCategorias(Database db) async {
+    await db.execute('''
+      CREATE TABLE categorias(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL UNIQUE,
+        created_at TEXT
+      )
+    ''');
   }
 
   /// Marcas registradas, para el selector con creacion en linea.
@@ -125,8 +157,8 @@ class DatabaseHelper {
           "ALTER TABLE ventas ADD COLUMN estado TEXT DEFAULT 'completada'");
     }
     if (oldVersion < 6) {
-      await db.execute(
-          "ALTER TABLE venta_detalles ADD COLUMN unidad_medida TEXT");
+      await db
+          .execute("ALTER TABLE venta_detalles ADD COLUMN unidad_medida TEXT");
     }
     if (oldVersion < 7) {
       await db.execute(
@@ -146,15 +178,23 @@ class DatabaseHelper {
       // Los productos ya existentes se quedan con costo 0 (ganancia
       // desconocida) y con `unidad_venta` en NULL, que se interpreta como
       // "misma unidad que el precio".
-      await db.execute(
-          "ALTER TABLE productos ADD COLUMN costo REAL DEFAULT 0.0");
-      await db.execute(
-          "ALTER TABLE productos ADD COLUMN unidad_venta TEXT");
+      await db
+          .execute("ALTER TABLE productos ADD COLUMN costo REAL DEFAULT 0.0");
+      await db.execute("ALTER TABLE productos ADD COLUMN unidad_venta TEXT");
       await db.execute(
           "ALTER TABLE venta_detalles ADD COLUMN iva REAL DEFAULT 0.0");
-      await db.execute(
-          "ALTER TABLE venta_detalles ADD COLUMN unidad_venta TEXT");
+      await db
+          .execute("ALTER TABLE venta_detalles ADD COLUMN unidad_venta TEXT");
       await _createMarcas(db);
+    }
+    if (oldVersion < 9) {
+      // v9: catalogo de categorias administrable.
+      //
+      // Se crea la tabla vacia a proposito: `sincronizarCategoriasDesdeProductos`
+      // la llena con lo que ya existe en `productos.categoria`, de modo que los
+      // productos viejos no quedan con una categoria huerfana que el usuario no
+      // ve en el menu lateral.
+      await _createCategorias(db);
     }
   }
 
@@ -172,7 +212,8 @@ class DatabaseHelper {
   /// si es negativo (por ejemplo al cobrar una venta).
   Future<int> updateStock(String? codigo, double cantidad, {int? id}) async {
     final db = await database;
-    final where = (codigo != null && codigo.isNotEmpty) ? 'codigo = ?' : 'id = ?';
+    final where =
+        (codigo != null && codigo.isNotEmpty) ? 'codigo = ?' : 'id = ?';
     final argumento = (codigo != null && codigo.isNotEmpty) ? codigo : id;
 
     return db.rawUpdate(
@@ -267,7 +308,8 @@ class DatabaseHelper {
   /// Marcas ordenadas alfabeticamente, para el autocompletado del formulario.
   Future<List<String>> getMarcas() async {
     final db = await database;
-    final result = await db.query('marcas', orderBy: 'nombre COLLATE NOCASE ASC');
+    final result =
+        await db.query('marcas', orderBy: 'nombre COLLATE NOCASE ASC');
     return result.map((e) => e['nombre'] as String).toList();
   }
 
@@ -333,6 +375,190 @@ class DatabaseHelper {
     }
   }
 
+  // --- Categorias ----------------------------------------------------------
+
+  /// Categorias del catalogo, ordenadas alfabeticamente.
+  Future<List<String>> getCategorias() async {
+    final db = await database;
+    final result = await db.query(
+      'categorias',
+      orderBy: 'nombre COLLATE NOCASE ASC',
+    );
+    return result.map((e) => e['nombre'] as String).toList();
+  }
+
+  /// Categoria canonica por nombre (sin distinguir mayusculas), o `null`.
+  Future<String?> getCategoria(String nombre) async {
+    final limpio = nombre.trim();
+    if (limpio.isEmpty) return null;
+
+    final db = await database;
+    final result = await db.query(
+      'categorias',
+      where: 'nombre = ? COLLATE NOCASE',
+      whereArgs: [limpio],
+      limit: 1,
+    );
+    return result.isEmpty ? null : result.first['nombre'] as String;
+  }
+
+  /// Registra una categoria y devuelve el nombre canonico.
+  ///
+  /// Igual que las marcas: si ya existe con otra capitalizacion devuelve la que
+  /// habia, para que "quesos" y "Quesos" no terminen como dos categorias.
+  Future<String> agregarCategoria(String nombre) async {
+    final limpio = nombre.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (limpio.isEmpty) return '';
+
+    final existente = await getCategoria(limpio);
+    if (existente != null) return existente;
+
+    final db = await database;
+    await db.insert('categorias', {
+      'nombre': limpio,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+    return limpio;
+  }
+
+  /// Registra la categoria si falta y devuelve la que quedo, sin fallar nunca.
+  ///
+  /// Se usa al guardar un producto: que la categoria sea nueva nunca debe
+  /// impedir registrar la venta.
+  Future<String> asegurarCategoria(String nombre) async {
+    try {
+      final agregada = await agregarCategoria(nombre);
+      return agregada.isEmpty ? nombre.trim() : agregada;
+    } catch (_) {
+      return nombre.trim();
+    }
+  }
+
+  /// Renombra una categoria y arrastra los productos que la usan.
+  ///
+  /// `productos.categoria` guarda el texto, no el `id`, asi que el `UPDATE` va
+  /// en cascada por nombre. La comparacion es sin distinguir mayusculas para
+  /// que un producto guardado como "quesos" tambien se mueva a "Quesos".
+  ///
+  /// Devuelve el nombre canonico nuevo, o `null` si la categoria no existia.
+  Future<String?> renombrarCategoria(String actual, String nuevo) async {
+    final origen = await getCategoria(actual);
+    if (origen == null) return null;
+
+    final destino = nuevo.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (destino.isEmpty) return origen;
+
+    // Si el destino ya existe no se fusiona a ciegas: el llamador debe
+    // preguntar. Devolver `null` sin tocar nada seria indistinguible de
+    // "no existia", asi que se lanza y el formulario lo reporta.
+    final chocante = await getCategoria(destino);
+    if (chocante != null && chocante.toLowerCase() != origen.toLowerCase()) {
+      throw EstadoCategoriaException(
+        'Ya existe la categoria "$chocante".',
+      );
+    }
+
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.update(
+        'categorias',
+        {'nombre': destino},
+        where: 'nombre = ? COLLATE NOCASE',
+        whereArgs: [origen],
+      );
+      await txn.update(
+        'productos',
+        {'categoria': destino},
+        where: 'categoria = ? COLLATE NOCASE',
+        whereArgs: [origen],
+      );
+    });
+
+    return destino;
+  }
+
+  /// Catalogo con la cuenta de productos de cada categoria, en una sola consulta.
+  ///
+  /// La pantalla de categorias necesita el numero para cada fila. Consultarlo con
+  /// `contarProductosPorCategoria` en un bucle son N viajes a la base (un N+1) y
+  /// con ~100 categorias se nota; aqui se resuelve con un `LEFT JOIN`.
+  Future<Map<String, int>> getCategoriasConConteo() async {
+    final db = await database;
+    final resultado = await db.rawQuery('''
+    SELECT c.nombre AS nombre, COUNT(p.id) AS total
+    FROM categorias c
+    LEFT JOIN productos p ON p.categoria = c.nombre COLLATE NOCASE
+    GROUP BY c.id
+    ORDER BY c.nombre COLLATE NOCASE ASC
+  ''');
+
+    return {
+      for (final fila in resultado)
+        fila['nombre'] as String: (fila['total'] as int?) ?? 0,
+    };
+  }
+
+  /// Cuantos productos usan esta categoria.
+  Future<int> contarProductosPorCategoria(String nombre) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS total FROM productos '
+      'WHERE categoria = ? COLLATE NOCASE',
+      [nombre.trim()],
+    );
+    return (result.first['total'] as int?) ?? 0;
+  }
+
+  /// Borra la categoria del catalogo.
+  ///
+  /// Devuelve `false` — sin borrar nada — si hay productos que la usan. Como
+  /// `productos.categoria` es texto plano, borrarla dejaria esos productos con
+  /// una categoria que no aparece en ninguna parte: primero hay que moverlos.
+  Future<bool> eliminarCategoria(String nombre) async {
+    if (await contarProductosPorCategoria(nombre) > 0) return false;
+
+    final db = await database;
+    await db.delete(
+      'categorias',
+      where: 'nombre = ? COLLATE NOCASE',
+      whereArgs: [nombre.trim()],
+    );
+    return true;
+  }
+
+  /// Nombre canonico de una categoria, sin escribir nada.
+  ///
+  /// Prioridad: el catalogo propio, luego las predeterminadas, y si no hay
+  /// coincidencia el texto tal cual con la inicial en mayuscula. Existe para
+  /// poder llamarlo **antes** de guardar el producto —normalizar contra el
+  /// catalogo tiene que poder leer sin crear filas huerfanas si despues el
+  /// guardado falla por codigo repetido—.
+  Future<String> normalizarCategoria(String texto) async {
+    final limpio = texto.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (limpio.isEmpty) return '';
+
+    final canonica = await getCategoria(limpio);
+    if (canonica != null) return canonica;
+
+    return Categorias.normalizar(limpio);
+  }
+
+  /// Copia a la tabla `categorias` lo que ya existe en `productos.categoria`.
+  ///
+  /// Necesario tras una migracion y util tras crear productos a mano, para que
+  /// el menu lateral muestre todo lo que realmente se esta usando.
+  Future<void> sincronizarCategoriasDesdeProductos() async {
+    final db = await database;
+    final resultado = await db.rawQuery('''
+      SELECT DISTINCT categoria FROM productos
+      WHERE categoria IS NOT NULL AND TRIM(categoria) <> ''
+    ''');
+
+    for (final fila in resultado) {
+      await asegurarCategoria(fila['categoria'] as String);
+    }
+  }
+
   Future<List<Venta>> getVentas() async {
     final db = await database;
     final result = await db.query('ventas', orderBy: 'fecha DESC');
@@ -380,8 +606,7 @@ class DatabaseHelper {
     final now = DateTime.now();
 
     final inicioHoy = DateTime(now.year, now.month, now.day);
-    final inicioSemana =
-        now.subtract(Duration(days: now.weekday - 1));
+    final inicioSemana = now.subtract(Duration(days: now.weekday - 1));
     final inicioSemanaDate =
         DateTime(inicioSemana.year, inicioSemana.month, inicioSemana.day);
     final inicioMes = DateTime(now.year, now.month, 1);

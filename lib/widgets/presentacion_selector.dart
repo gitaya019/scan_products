@@ -46,7 +46,8 @@ class PresentacionSelector extends StatelessWidget {
           seleccionada: !ventaPorPeso,
           icono: Icons.inventory_2_rounded,
           titulo: 'Por unidades',
-          detalle: 'Se cuenta una pieza por cada venta: 3 unidades, 2 paquetes.',
+          detalle:
+              'Se cuenta una pieza por cada venta: 3 unidades, 2 paquetes.',
           color: acento,
           onTap: () => onChanged(false),
         ),

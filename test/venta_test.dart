@@ -7,8 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'helpers/test_database.dart';
 
-Future<void> io(WidgetTester t) => t.runAsync(
-    () => Future<void>.delayed(const Duration(milliseconds: 120)));
+Future<void> io(WidgetTester t) =>
+    t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 120)));
 
 /// Deja correr las animaciones de `flutter_animate`.
 ///
@@ -212,8 +212,7 @@ void main() {
       });
     });
 
-    testWidgets('la venta descuenta el stock de cada producto',
-        (tester) async {
+    testWidgets('la venta descuenta el stock de cada producto', (tester) async {
       await tester.runAsync(sembrar);
       await abrir(tester);
 

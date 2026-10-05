@@ -58,8 +58,13 @@ class MarcaSelector extends StatelessWidget {
   /// Quita tildes y la letra ñ, para comparar sin depender de como se escribio.
   static String _sinTildes(String texto) {
     const mapa = {
-      'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u',
-      'ü': 'u', 'ñ': 'n',
+      'á': 'a',
+      'é': 'e',
+      'í': 'i',
+      'ó': 'o',
+      'ú': 'u',
+      'ü': 'u',
+      'ñ': 'n',
     };
     var salida = texto;
     mapa.forEach((con, sin) => salida = salida.replaceAll(con, sin));
@@ -80,7 +85,8 @@ class MarcaSelector extends StatelessWidget {
     final theme = Theme.of(context);
     final textoActual = controller.text;
     final yaExiste = marcas.any(
-      (m) => _sinTildes(m.nombre.toLowerCase()) ==
+      (m) =>
+          _sinTildes(m.nombre.toLowerCase()) ==
           _sinTildes(textoActual.trim().toLowerCase()),
     );
     final sugerencias = _coincidencias(marcas, textoActual);

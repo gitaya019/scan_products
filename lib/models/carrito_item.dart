@@ -29,7 +29,8 @@ class CarritoItem {
   /// Si el precio esta en otra unidad hay que escalarlo para poder multiplicar
   /// por la cantidad capturada. Por eso 5.000 por lb son 11,02 por g.
   double get precioUnitarioVenta => producto.necesitaConversion
-      ? producto.precio * Unidades.aUnidadPrecio(
+      ? producto.precio *
+          Unidades.aUnidadPrecio(
             1,
             unidadVenta: producto.unidad,
             unidadPrecio: producto.unidadPrecio,

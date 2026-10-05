@@ -97,8 +97,8 @@ void main() {
     });
 
     test('elimina un producto', () async {
-      final id = await DatabaseHelper.instance
-          .addProducto(crearProducto().toMap());
+      final id =
+          await DatabaseHelper.instance.addProducto(crearProducto().toMap());
 
       await DatabaseHelper.instance.deleteProducto(id);
 
