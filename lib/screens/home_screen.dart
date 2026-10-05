@@ -642,7 +642,7 @@ class _TarjetaProducto extends StatelessWidget {
                       ? Icons.scale_rounded
                       : Icons.inventory_2_rounded,
                   label: producto.ventaPorPeso
-                      ? (producto.unidadMedida ?? 'peso')
+                      ? producto.unidad
                       : 'Por unidad',
                   color: theme.colorScheme.secondary,
                 ),
@@ -954,10 +954,10 @@ class _DialogoCantidadState extends State<_DialogoCantidad> {
                     'Actual ${formatCantidad(producto.stock, porPeso: producto.ventaPorPeso)}',
                 color: color,
               ),
-              if (producto.unidadMedida != null)
+              if (producto.ventaPorPeso)
                 GlassChip(
                   icon: Icons.scale_rounded,
-                  label: producto.unidadMedida!,
+                  label: producto.unidad,
                   color: AppColors.neonCyan,
                 ),
             ],
@@ -973,7 +973,7 @@ class _DialogoCantidadState extends State<_DialogoCantidad> {
             decoration: InputDecoration(
               labelText: labelCantidad(
                 porPeso: producto.ventaPorPeso,
-                unidadMedida: producto.unidadMedida,
+                unidadMedida: producto.unidad,
               ),
             ),
             onSubmitted: (_) => _confirmar(context),

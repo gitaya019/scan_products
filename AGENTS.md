@@ -5,10 +5,11 @@
 Flutter inventory + point-of-sale app (Spanish, Colombian market, COP).
 
 - **Entrypoint:** `lib/main.dart` → `ScanProductsApp` → `HomeScreen`
-- **Database:** SQLite via `sqflite`, **version 7**, 3 tables:
-  - `productos` (id, nombre, codigo UNIQUE, categoria, precio, peso, stock, marca, unidad_medida, iva, venta_por_peso)
+- **Database:** SQLite via `sqflite`, **version 8**, 4 tables:
+  - `productos` (id, nombre, codigo UNIQUE, categoria, precio, costo, peso, stock, marca, unidad_medida, unidad_venta, iva, venta_por_peso)
+  - `marcas` (id, nombre UNIQUE, created_at)
   - `ventas` (id, total, fecha ISO, estado `completada`|`anulada`)
-  - `venta_detalles` (venta_id FK CASCADE, producto_id, nombre, codigo, precio_unitario, cantidad, subtotal, unidad_medida, venta_por_peso)
+  - `venta_detalles` (venta_id FK CASCADE, producto_id, nombre, codigo, precio_unitario, cantidad, subtotal, unidad_medida, unidad_venta, venta_por_peso, iva)
 - **Orientation:** portrait only
 - **Theme:** light + dark, persisted with `shared_preferences`, toggle in the sidebar. Defaults to **dark**.
 - **Default theme mode:** dark
@@ -40,6 +41,12 @@ adding UI.
 drops frames on mid-range Android. Single surfaces (app bars, search bars, the
 checkout total bar) keep the blur.
 
+**ListTile rule:** an `ExpansionTile` inside a `GlassSurface` must be wrapped in
+a `Material`. `ListTile` paints its background and ink on the nearest `Material`
+ancestor, and `GlassSurface` is a `DecoratedBox` with a color — without the
+wrapper Flutter asserts *"ListTile background color or ink splashes may be
+invisible"*.
+
 **Rule:** never hardcode colors, radii, or spacing in a screen. Use the tokens
 above so light/dark stay coherent.
 
@@ -48,25 +55,38 @@ above so light/dark stay coherent.
 - **`lib/main.dart`** — app root, portrait lock, `ValueListenableBuilder` on `ThemeController`
 - **`lib/theme/app_theme.dart`** — tokens + shared widgets (largest file, ~800 lines)
 - **`lib/theme/theme_controller.dart`** — `ValueNotifier<ThemeMode>`, loads/saves the preference
+- **`lib/data/categorias.dart`** — ~80 preset grocery categories in 10 sections (`List<({String seccion, List<String> categorias})>`)
 - **`lib/screens/home_screen.dart`** — product list, search, stock-low filter + badge, swipe-to-delete, quick-add stock
 - **`lib/screens/add_producto_screen.dart`** — create form in 3 sections; scanning detects duplicates and offers to add stock instead
 - **`lib/screens/edit_producto_screen.dart`** — edit form + "Valor en inventario" panel + delete
-- **`lib/screens/venta_screen.dart`** — POS: scan/search, cart, quantity dialog, checkout
-- **`lib/screens/historial_ventas_screen.dart`** — sale history, detail dialog, void (restores stock)
-- **`lib/screens/reporte_ventas_screen.dart`** — day/week/month totals + best-selling product
-- **`lib/models/`** — `Producto`, `Venta`, `VentaDetalle`, `CarritoItem` (all with `toMap()`/`fromMap()`)
+- **`lib/screens/venta_screen.dart`** — POS: scan/search, cart, quantity dialog with live total, checkout
+- **`lib/screens/historial_ventas_screen.dart`** — sale history, detail dialog with tax breakdown, void (restores stock)
+- **`lib/screens/reporte_ventas_screen.dart`** — day/week/month totals, IVA breakdown, best-selling product
+- **`lib/models/`** — `Producto`, `Venta`, `VentaDetalle`, `CarritoItem`, `Marca` (all with `toMap()`/`fromMap()`)
 - **`lib/services/database_helper.dart`** — singleton, lazy init, cached `Database`
 - **`lib/utils/formatters.dart`** — `formatCurrency()`, `parseCurrency()`, `formatCantidad()`, `labelCantidad()`, `labelStock()`, `formatFecha()`
+- **`lib/utils/precios.dart`** — business math: `precioSinIVA`, `ivaIncluido`, `precioDesdeCosto`, `margenDesdePrecios`, `ivaDeLineas`, `redondearMoneda`, `parsePorcentaje`
+- **`lib/utils/unidades.dart`** — unit conversion table (masa/volumen/conteo)
 - **`lib/widgets/sidebar.dart`** — drawer + theme switch
 - **`lib/widgets/producto_text_field.dart`** — base text field
 - **`lib/widgets/precio_field.dart`** — COP price field, reformats on focus loss
+- **`lib/widgets/precio_panel.dart`** — bidirectional costo ↔ margen ↔ precio with live preview
+- **`lib/widgets/presentacion_selector.dart`** — `PresentacionSelector` (units vs weight) + `UnidadVentaSelector` (balance unit)
+- **`lib/widgets/categoria_selector.dart`** — free-text field + preset sections
+- **`lib/widgets/marca_selector.dart`** — brand autocomplete + inline creation
+- **`lib/widgets/vista_previa_cobro.dart`** — live charge preview in the quantity dialog
 
 ## Business Rules
 
 - **Umbral stock bajo = 5** (`_HomeScreenState._umbralStockBajo`)
-- **Venta por peso/volumen:** `ventaPorPeso` + `unidadMedida` drive keyboard, field label, icon, and cart increment step (0.1 for kg/g/L/mL, 1 for unidad/paquete/caja)
-- **Unidades:** `['unidad', 'kg', 'g', 'lb', 'L', 'mL', 'paquete', 'caja']`
-- **IVA:** stored and displayed but **not applied** to sale totals
+- **Unidades:** `Unidades.todas` = `['unidad', 'kg', 'g', 'lb', 'L', 'mL', 'paquete', 'caja']`. Mass base is the gram (lb = 453.59237), volume base the mL, counting units are non-convertible.
+- **Two units per product, never one.** `unidad_medida` is the unit the price is quoted in; `unidad_venta` is the unit it's weighed and counted in. `null` in `unidad_venta` means "same as the price", which is what pre-v8 rows carry. `Producto.unidad` resolves the null; `Producto.necesitaConversion` is true only when the units differ **and** `Unidades.factor()` returns non-null (so g↔L never silently multiplies).
+- **Cart total:** `CarritoItem.subtotal` = `precioUnitarioVenta × cantidad`, rounded to whole pesos. 120 g at 5.000/lb = 1.323, not 600.000.
+- **Step size:** `0.1` for kg/lb/L, `1` for g/mL and counting units. A gram-scale increment of 0,1 g is scale noise and would need 1.200 taps for one onion.
+- **IVA is INCLUDED in the sale price.** The customer pays exactly the shelf price; `Precios.precioSinIVA` only extracts the tax for reporting. Per-line rate is stored on `venta_detalles.iva` so a mixed-rate sale (0/5/10/19) still breaks down. Never change the charged total to show tax.
+- **The "precio base" the user types is the purchase COST.** Margin applies over cost (`costo × (1 + margen/100)`). `PrecioPanel` binds both directions with a `_sincronizando` guard so typing a margin doesn't cascade or move the cursor.
+- **Categories:** free text with ~80 presets as shortcuts. `Categorias.normalizar()` maps a case-insensitive match back to the canonical spelling so "quesos" and "Quesos" aren't two categories.
+- **Brands:** `productos.marca` stays TEXT on purpose — a hand-typed product must not depend on a `marcas` row existing. The table only feeds autocomplete and inline creation; `sincronizarMarcasDesdeProductos()` back-fills from existing products.
 - **Currency:** COP, `NumberFormat.decimalPattern('es_CO')`, rounded, no symbol — `currency()` with `symbol: ''` leaves a trailing space
 
 ## Conventions
@@ -128,7 +148,7 @@ The remaining warnings are expected and not ours to fix:
 |---|---|
 | `flutter pub get` | Install dependencies |
 | `flutter analyze` | Must stay at **0 issues**. `analysis_options.yaml` adds 10 extra lints beyond `flutter_lints` |
-| `flutter test` | 51 tests |
+| `flutter test` | 142 tests |
 | `flutter run` | Run on device |
 | `flutter build apk --release` | Android release build |
 | `flutter build ios` | iOS release build |
@@ -142,7 +162,13 @@ The remaining warnings are expected and not ours to fix:
 | `test/modelos_test.dart` | `toMap`/`fromMap` round-trips, defaults, null handling |
 | `test/database_test.dart` | CRUD, search, stock deltas, sales, void, summary — against in-memory FFI |
 | `test/widget_test.dart` | App boots, both themes build |
-| `test/screens_test.dart` | Every screen renders against a seeded DB in both themes — catches layout overflows and bad `ColorScheme` reads |
+| `test/screens_test.dart` | Every screen renders against a seeded DB in both themes — catches layout overflows and bad `ColorScheme` reads. Add/edit use a 6000/7000 px window so the whole form lays out without scrolling |
+| `test/venta_test.dart` | 6 end-to-end sale tests: search → add → charge → confirmation → Listo, IVA not altering the total, stock decrement, persisted IVA |
+| `test/precios_test.dart` | IVA-included math, margin over cost, rounding, `parsePorcentaje` |
+| `test/unidades_test.dart` | kg/g/lb/L/mL factors, `convertir`, `equivalencia`, unit classification |
+| `test/carrito_test.dart` | Line totals with distinct price/weighing units, incompatible-unit fallbacks |
+| `test/categorias_test.dart` | Preset list integrity, search, `normalizar` |
+| `test/widgets_test.dart` | `CategoriaSelector`, `MarcaSelector`, `UnidadVentaSelector`, `PresentacionSelector`, `VistaPreviaCobro` |
 
 **Critical:** `sqflite` does not work headless. Use `sqflite_common_ffi` via
 `inicializarBaseDeDatosDePrueba()` from `test/helpers/test_database.dart`, and

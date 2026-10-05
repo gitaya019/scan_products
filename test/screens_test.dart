@@ -204,10 +204,11 @@ void main() {
       await montar(
         tester,
         (_) => const AddProductoScreen(),
-        // Con el panel de precios (costo, margen, IVA y vista previa) el
-        // formulario quedo mas alto; la ventana tiene que crecer con el para
-        // que el boton siga construyendo sin scroll.
-        tamano: const Size(1080, 4900),
+        // Con el panel de precios (costo, margen, IVA y vista previa) y los
+        // selectores de categoria y marca, el formulario quedo mas alto; la
+        // ventana tiene que crecer con el para que el boton siga construyendo
+        // sin scroll.
+        tamano: const Size(1080, 6000),
       );
 
       expect(find.text('Guardar producto'), findsOneWidget);
@@ -219,7 +220,7 @@ void main() {
       await montar(
         tester,
         (_) => EditProductoScreen(producto: producto),
-        tamano: const Size(1080, 5300),
+        tamano: const Size(1080, 7000),
       );
 
       expect(find.text('Eliminar producto'), findsWidgets);

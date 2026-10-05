@@ -3,11 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../data/categorias.dart';
+import '../models/marca.dart';
 import '../models/producto_model.dart';
 import '../services/database_helper.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
 import '../utils/precios.dart';
+import '../utils/unidades.dart';
+import '../widgets/categoria_selector.dart';
+import '../widgets/marca_selector.dart';
 import '../widgets/precio_panel.dart';
 import '../widgets/presentacion_selector.dart';
 import '../widgets/producto_text_field.dart';
@@ -37,8 +42,12 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
   final _stockController = TextEditingController();
 
   String _unidadMedida = 'unidad';
+  String _unidadVenta = 'unidad';
   bool _ventaPorPeso = false;
   bool _guardando = false;
+
+  /// Marcas ya registradas, para el autocompletado.
+  List<Marca> _marcas = [];
 
   // Costo, precio e IVA los administra `PrecioPanel`, que los mantiene
   // sincronizados entre si y los reporta por aqui para armar el `Producto`.
@@ -50,6 +59,28 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
   void initState() {
     super.initState();
     _medidaController.text = '1';
+    _cargarMarcas();
+  }
+
+  /// Trae las marcas existentes y, de paso, registra las que ya estaban en los
+  /// productos de una base creada antes de que existiera la tabla.
+  Future<void> _cargarMarcas() async {
+    final db = DatabaseHelper.instance;
+    await db.sincronizarMarcasDesdeProductos();
+    final nombres = await db.getMarcas();
+    if (!mounted) return;
+    setState(() => _marcas = nombres.map((n) => Marca(nombre: n)).toList());
+  }
+
+  Future<void> _crearMarca(String nombre) async {
+    if (nombre.trim().isEmpty) return;
+    final guardada = await DatabaseHelper.instance.agregarMarca(nombre);
+    if (!mounted) return;
+    setState(() {
+      _marcas = [..._marcas, Marca(nombre: guardada)]
+        ..sort((a, b) => a.nombre.compareTo(b.nombre));
+      _marcaController.text = guardada;
+    });
   }
 
   @override
@@ -80,8 +111,37 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
           _unidadMedida != 'lb') {
         _unidadMedida = 'unidad';
       }
+      if (!_unidadDeVentaValida(_unidadVenta)) {
+        _unidadVenta = _unidadMedida;
+      }
     });
   }
+
+  /// Si la unidad de venta ya no tiene sentido (por ejemplo se paso de kg a
+  /// "unidad"), se vuelve a la del precio en vez de quedar en un valor muerto.
+  bool _unidadDeVentaValida(String unidad) =>
+      _unidadDeVentaCandidatas.contains(unidad);
+
+  /// Unidades en las que se puede pesar cuando el precio esta en [_unidadMedida].
+  ///
+  /// Solo las que tienen conversion real: si el precio esta en "unidad", no
+  /// tiene sentido ofrecer grams como unidad de pesaje.
+  List<String> get _unidadDeVentaCandidatas => [
+        _unidadMedida,
+        for (final u in Unidades.todas)
+          if (u != _unidadMedida &&
+              Unidades.factor(origen: u, destino: _unidadMedida) != null)
+            u,
+      ];
+
+  /// Muestra el selector de balanza cuando hay algo distinto a elegir.
+  ///
+  /// Si el precio ya esta en la unica unidad disponible (por ejemplo
+  /// "unidad"), no hay conversion posible y el selector solo confunde. Si ya son
+  /// distintas, se muestra igual aunque el valor siga siendo el del precio: asi
+  /// el usuario descubre que la opcion existe en vez de tener que buscarla.
+  bool get _mostrarUnidadVenta =>
+      _ventaPorPeso && _unidadDeVentaCandidatas.length > 1;
 
   bool get _porVolumen => _unidadMedida == 'L' || _unidadMedida == 'mL';
 
@@ -139,19 +199,31 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
     final producto = Producto(
       nombre: _nombreController.text.trim(),
       codigo: _codigoController.text.trim(),
-      categoria: _categoriaController.text.trim(),
+      // La categoria se normaliza contra la lista de predeterminadas para que
+      // "quesos" y "Quesos" no queden como dos categorias distintas.
+      categoria: Categorias.normalizar(_categoriaController.text),
       precio: _precio,
       costo: _costo,
       peso: double.tryParse(_medidaController.text) ?? 1.0,
       stock: double.tryParse(_stockController.text) ?? 0.0,
-      marca: _marcaController.text.trim().isEmpty ? null : _marcaController.text.trim(),
+      marca: _marcaController.text.trim().isEmpty
+          ? null
+          : _marcaController.text.trim(),
       unidadMedida: _unidadMedida,
+      // Solo se guarda si difiere: si son la misma, `null` deja la columna
+      // limpia y el producto se lee igual que uno antiguo.
+      unidadVenta: _unidadVenta == _unidadMedida ? null : _unidadVenta,
       iva: _iva,
       ventaPorPeso: _ventaPorPeso,
     );
 
     try {
       await DatabaseHelper.instance.addProducto(producto.toMap());
+      // La marca se registra despues: si el producto falla por codigo repetido,
+      // no queda una marca huerfana de un producto que nunca existio.
+      if (producto.marca != null) {
+        await DatabaseHelper.instance.asegurarMarca(producto.marca!);
+      }
       if (!mounted) return;
       Navigator.pop(context);
     } catch (_) {
@@ -230,13 +302,11 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                         ],
                       ),
                       const SizedBox(height: AppSpacing.sm),
-                      ProductoTextField(
+                      CategoriaSelector(
                         controller: _categoriaController,
-                        label: 'Categoria',
-                        icon: Icons.category_outlined,
-                        textCapitalization: TextCapitalization.sentences,
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Ingresa una categoria' : null,
+                                                validator: (v) => (v == null || v.isEmpty || v.trim().isEmpty)
+                            ? 'Ingresa una categoria'
+                            : null,
                       ),
                     ],
                   ),
@@ -252,34 +322,46 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                   blur: false,
                   child: Column(
                     children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: ProductoTextField(
-                              controller: _marcaController,
-                              label: 'Marca',
-                              icon: Icons.branding_watermark_outlined,
-                              textCapitalization: TextCapitalization.words,
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: _DropdownUnidad(
-                              valor: _unidadMedida,
-                              items: _unidades,
-                              onChanged: (v) {
-                                if (v != null) setState(() => _unidadMedida = v);
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.md),
                       PresentacionSelector(
                         ventaPorPeso: _ventaPorPeso,
                         unidadMedida: _unidadMedida,
                         onChanged: _alCambiarPresentacion,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      _DropdownUnidad(
+                        valor: _unidadMedida,
+                        items: _unidades,
+                        label: _ventaPorPeso
+                            ? 'Unidad en que se cotiza el precio'
+                            : 'Unidad',
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setState(() {
+                            _unidadMedida = v;
+                            if (!_unidadDeVentaValida(_unidadVenta) ||
+                                _unidadVenta == 'unidad') {
+                              _unidadVenta = v;
+                            }
+                          });
+                        },
+                      ),
+                      if (_mostrarUnidadVenta) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        // Solo tiene sentido cuando hay conversion real; si el
+                        // precio esta en kg y la balanza tambien, no hay nada
+                        // que mostrar y el selector solo confunde.
+                        UnidadVentaSelector(
+                          unidadPrecio: _unidadMedida,
+                          unidadVenta: _unidadVenta,
+                          candidatas: _unidadDeVentaCandidatas,
+                          onChanged: (v) => setState(() => _unidadVenta = v),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.md),
+                      MarcaSelector(
+                        controller: _marcaController,
+                        marcas: _marcas,
+                                                onCrear: _crearMarca,
                       ),
                     ],
                   ),
@@ -312,6 +394,8 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                           Expanded(
                             child: ProductoTextField(
                               controller: _medidaController,
+                              // El contenido se expresa en la unidad del
+                              // precio, que es la del contador de la balanza.
                               label: labelCantidad(
                                 porPeso: _ventaPorPeso,
                                 unidadMedida: _unidadMedida,
@@ -327,9 +411,12 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                           Expanded(
                             child: ProductoTextField(
                               controller: _stockController,
+                              // El stock se cuenta en la unidad de la
+                              // balanza, que puede ser distinta.
                               label: labelStock(
                                 porPeso: _ventaPorPeso,
-                                unidadMedida: _unidadMedida,
+                                unidadMedida:
+                                    _ventaPorPeso ? _unidadVenta : _unidadMedida,
                               ),
                               icon: Icons.inventory_rounded,
                               keyboardType: _ventaPorPeso
@@ -402,11 +489,13 @@ class _EncabezadoSeccion extends StatelessWidget {
 class _DropdownUnidad extends StatelessWidget {
   final String valor;
   final List<String> items;
+  final String label;
   final ValueChanged<String?> onChanged;
 
   const _DropdownUnidad({
     required this.valor,
     required this.items,
+    required this.label,
     required this.onChanged,
   });
 
@@ -419,9 +508,9 @@ class _DropdownUnidad extends StatelessWidget {
       isExpanded: true,
       borderRadius: BorderRadius.circular(AppShape.md),
       icon: const Icon(Icons.unfold_more_rounded, size: 20),
-      decoration: const InputDecoration(
-        labelText: 'Unidad',
-        prefixIcon: Icon(Icons.straighten_rounded, size: 20),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: const Icon(Icons.straighten_rounded, size: 20),
       ),
       style: theme.textTheme.titleMedium,
       items: items
@@ -509,7 +598,7 @@ class _DialogoStockProductoState extends State<_DialogoStockProducto> {
             decoration: InputDecoration(
               labelText: labelCantidad(
                 porPeso: producto.ventaPorPeso,
-                unidadMedida: producto.unidadMedida,
+                unidadMedida: producto.unidad,
               ),
             ),
           ),

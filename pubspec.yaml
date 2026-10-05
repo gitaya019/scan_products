@@ -3,7 +3,7 @@ name: scan_products
 # La app no se publica en pub.dev
 publish_to: "none"
 
-version: 2.0.0+1
+version: 2.1.0+2
 
 # Descripcion publicada en las tiendas
 description: "Punto de venta e inventario con escaneo de codigos de barras"

@@ -62,6 +62,7 @@ class _ReporteVentasScreenState extends State<ReporteVentasScreen> {
                       _TarjetaHero(
                         totalMes: _doble('total_mes'),
                         cantidadMes: _doble('cantidad_mes'),
+                        ivaMes: _doble('iva_mes'),
                       ),
                       const SizedBox(height: AppSpacing.md),
                       _Rotulo('Periodos'),
@@ -71,6 +72,8 @@ class _ReporteVentasScreenState extends State<ReporteVentasScreen> {
                         titulo: 'Hoy',
                         total: _doble('total_hoy'),
                         cantidad: _doble('cantidad_hoy'),
+                        iva: _doble('iva_hoy'),
+                        ivaIncluido: true,
                         color: AppColors.neonCyan,
                         indice: 0,
                       ),
@@ -80,6 +83,8 @@ class _ReporteVentasScreenState extends State<ReporteVentasScreen> {
                         titulo: 'Esta semana',
                         total: _doble('total_semana'),
                         cantidad: _doble('cantidad_semana'),
+                        iva: _doble('iva_semana'),
+                        ivaIncluido: true,
                         color: AppColors.neonLime,
                         indice: 1,
                       ),
@@ -89,6 +94,8 @@ class _ReporteVentasScreenState extends State<ReporteVentasScreen> {
                         titulo: 'Este mes',
                         total: _doble('total_mes'),
                         cantidad: _doble('cantidad_mes'),
+                        iva: _doble('iva_mes'),
+                        ivaIncluido: true,
                         color: AppColors.neonViolet,
                         indice: 2,
                       ),
@@ -129,8 +136,13 @@ class _Rotulo extends StatelessWidget {
 class _TarjetaHero extends StatelessWidget {
   final double totalMes;
   final double cantidadMes;
+  final double ivaMes;
 
-  const _TarjetaHero({required this.totalMes, required this.cantidadMes});
+  const _TarjetaHero({
+    required this.totalMes,
+    required this.cantidadMes,
+    required this.ivaMes,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -157,10 +169,25 @@ class _TarjetaHero extends StatelessWidget {
             style: theme.textTheme.displaySmall,
           ),
           const SizedBox(height: AppSpacing.xs),
-          GlassChip(
-            icon: Icons.shopping_bag_rounded,
-            label: '${cantidadMes.toInt()} producto(s) vendidos',
-            color: AppColors.neonCyan,
+          Wrap(
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: [
+              GlassChip(
+                icon: Icons.shopping_bag_rounded,
+                label: '${cantidadMes.toInt()} producto(s) vendidos',
+                color: AppColors.neonCyan,
+              ),
+              // El total ya viene con el IVA dentro, asi que esto es solo el
+              // dato de cuanto de ese dinero fue a impuestos. Se oculta cuando
+              // todo el mes estuvo exento: una pastilla de cero no informa nada.
+              if (ivaMes > 0)
+                GlassChip(
+                  icon: Icons.receipt_long_rounded,
+                  label: 'IVA ${formatCurrency(ivaMes)} incluido',
+                  color: AppColors.neonAmber,
+                ),
+            ],
           ),
         ],
       ),
@@ -173,6 +200,10 @@ class _FilaMetrica extends StatelessWidget {
   final String titulo;
   final double total;
   final double cantidad;
+  final double iva;
+
+  /// Si el IVA ya venia incluido en el total, que es el caso de siempre.
+  final bool ivaIncluido;
   final Color color;
   final int indice;
 
@@ -181,6 +212,8 @@ class _FilaMetrica extends StatelessWidget {
     required this.titulo,
     required this.total,
     required this.cantidad,
+    required this.iva,
+    required this.ivaIncluido,
     required this.color,
     required this.indice,
   });
@@ -189,6 +222,7 @@ class _FilaMetrica extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final base = total - iva;
 
     return GlassSurface(
       blur: false,
@@ -216,6 +250,17 @@ class _FilaMetrica extends StatelessWidget {
                   '${cantidad.toInt()} producto(s)',
                   style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12.5),
                 ),
+                // El desglose solo aparece cuando hay algo que desglosar: con
+                // todos los productos exentos (tasa 0) seria una fila de ceros.
+                if (iva > 0) ...[
+                  Text(
+                    'Base ${formatCurrency(base)} + IVA ${formatCurrency(iva)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 11,
+                      color: AppColors.neonAmber,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -227,7 +272,10 @@ class _FilaMetrica extends StatelessWidget {
                 text: formatCurrency(total),
                 style: theme.textTheme.titleLarge,
               ),
-              Text('COP', style: theme.textTheme.bodyMedium?.copyWith(fontSize: 10.5)),
+              Text(
+                ivaIncluido ? 'COP c/IVA' : 'COP',
+                style: theme.textTheme.bodyMedium?.copyWith(fontSize: 10.5),
+              ),
             ],
           ),
         ],

@@ -88,9 +88,17 @@ class Precios {
   /// Convierte un porcentaje escrito por el usuario a `double`.
   ///
   /// Acepta "30", "30,5", "30.5" y descarta cualquier simbolo.
+  ///
+  /// La coma se trata como separador decimal antes de limpiarla: en Colombia
+  /// "30,5" es cinco, no trescientos cinco. Sin esa conversion el panel de
+  /// margen multiplicaba por diez al teclear con el teclado del celular, que en
+  /// muchos equipos manda coma.
   static double parsePorcentaje(String texto) {
-    final limpio = texto.replaceAll(RegExp(r'[^0-9.]'), '');
+    final normalizado = texto.trim().replaceAll(',', '.');
+    final esNegativo = normalizado.startsWith('-');
+    final limpio = normalizado.replaceAll(RegExp(r'[^0-9.]'), '');
+
     final valor = double.tryParse(limpio) ?? 0;
-    return math.min(math.max(valor, 0), 9999);
+    return math.min(math.max(esNegativo ? -valor : valor, 0), 9999);
   }
 }

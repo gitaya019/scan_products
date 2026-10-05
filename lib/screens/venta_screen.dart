@@ -9,6 +9,7 @@ import '../services/database_helper.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
 import '../utils/precios.dart';
+import '../widgets/vista_previa_cobro.dart';
 
 /// Punto de venta: carrito en memoria que al finalizar descuenta stock y
 /// registra la venta con su detalle.
@@ -34,7 +35,26 @@ class _VentaScreenState extends State<VentaScreen> {
         _items.map((i) => (subtotal: i.subtotal, tasa: i.producto.iva)),
       );
 
-  double _paso(CarritoItem item) => item.esPorPeso ? 0.1 : 1.0;
+  /// Cuanto suma cada pulsacion del boton de mas.
+  ///
+  /// En productos que se pesan el paso es pequeño porque la unidad puede ser el
+  /// gramo: sumar 1 g por pulsacion obligaria a tocar 120 veces una cebolla.
+  double _paso(CarritoItem item) => item.esPorPeso ? _pasoPorUnidad(item) : 1.0;
+
+  /// Paso coherente con la granularidad de la unidad.
+  ///
+  /// Un kilo o una libra se incrementan de a 0,1; un gramo o un mililitro de
+  /// a 1, porque 0,1 g es ruido de la balanza. Lo mismo con el volumen.
+  double _pasoPorUnidad(CarritoItem item) {
+    switch (item.producto.unidad) {
+      case 'kg':
+      case 'lb':
+      case 'L':
+        return 0.1;
+      default:
+        return 1.0;
+    }
+  }
 
   @override
   void initState() {
@@ -561,10 +581,19 @@ class _TarjetaCarrito extends StatelessWidget {
                           color: theme.colorScheme.onSurface,
                         ),
                       ),
-                      if (item.esPorPeso && producto.unidadMedida != null)
+                      if (item.esPorPeso)
                         Text(
-                          producto.unidadMedida!,
+                          producto.unidad,
                           style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11),
+                        ),
+                      if (item.notaConversion != null)
+                        Text(
+                          item.notaConversion!,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontSize: 10,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                     ],
                   ),
@@ -754,7 +783,9 @@ class _MensajeVacio extends StatelessWidget {
   }
 }
 
-class _DialogoCantidadVenta extends StatelessWidget {
+/// `StatefulWidget` solo para poder repintar la vista previa del cobro: cada
+/// tecla tiene que recalcular cuanto se va a cobrar sin cerrar el dialogo.
+class _DialogoCantidadVenta extends StatefulWidget {
   final Producto producto;
   final TextEditingController controller;
 
@@ -762,6 +793,14 @@ class _DialogoCantidadVenta extends StatelessWidget {
     required this.producto,
     required this.controller,
   });
+
+  @override
+  State<_DialogoCantidadVenta> createState() => _DialogoCantidadVentaState();
+}
+
+class _DialogoCantidadVentaState extends State<_DialogoCantidadVenta> {
+  late final Producto producto = widget.producto;
+  late final TextEditingController controller = widget.controller;
 
   @override
   Widget build(BuildContext context) {
@@ -807,22 +846,34 @@ class _DialogoCantidadVenta extends StatelessWidget {
         AppSpacing.lg,
         0,
       ),
-      content: TextField(
-        controller: controller,
-        autofocus: true,
-        keyboardType: producto.ventaPorPeso
-            ? const TextInputType.numberWithOptions(decimal: true)
-            : TextInputType.number,
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-        ],
-        style: theme.textTheme.headlineSmall,
-        decoration: InputDecoration(
-          labelText: labelCantidad(
-            porPeso: producto.ventaPorPeso,
-            unidadMedida: producto.unidadMedida,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: producto.ventaPorPeso
+                ? const TextInputType.numberWithOptions(decimal: true)
+                : TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+            ],
+            style: theme.textTheme.headlineSmall,
+            decoration: InputDecoration(
+              labelText: labelCantidad(
+                porPeso: producto.ventaPorPeso,
+                unidadMedida: producto.unidad,
+              ),
+              helperText: producto.equivalencia,
+            ),
+            onChanged: (_) => setState(() {}),
           ),
-        ),
+          const SizedBox(height: AppSpacing.md),
+          // Vista previa del cobro: es lo que evita cobrar 600.000 por una
+          // cebolla de 120 g cuando la libra esta a 5.000.
+          VistaPreviaCobro(producto: producto, controller: controller),
+        ],
       ),
       actionsPadding: const EdgeInsets.fromLTRB(
         AppSpacing.lg,

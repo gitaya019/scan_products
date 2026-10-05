@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../data/categorias.dart';
+import '../models/marca.dart';
 import '../models/producto_model.dart';
 import '../services/database_helper.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
+import '../utils/unidades.dart';
+import '../widgets/categoria_selector.dart';
+import '../widgets/marca_selector.dart';
 import '../widgets/precio_panel.dart';
 import '../widgets/presentacion_selector.dart';
 import '../widgets/producto_text_field.dart';
@@ -32,8 +37,12 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
   late final TextEditingController _stockController;
 
   late String _unidadMedida;
+  late String _unidadVenta;
   late bool _ventaPorPeso;
   bool _guardando = false;
+
+  /// Marcas ya registradas, para el autocompletado.
+  List<Marca> _marcas = [];
 
   // Costo, precio e IVA los administra `PrecioPanel`.
   double _costo = 0;
@@ -64,7 +73,31 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
     _iva = p.iva;
 
     _unidadMedida = p.unidadMedida ?? _unidades.first;
+    // `Producto.unidad` ya resuelve el `null` heredado ("misma que el precio"),
+    // asi que nunca devuelve nulo.
+    _unidadVenta = p.unidad;
     _ventaPorPeso = p.ventaPorPeso;
+
+    _cargarMarcas();
+  }
+
+  Future<void> _cargarMarcas() async {
+    final db = DatabaseHelper.instance;
+    await db.sincronizarMarcasDesdeProductos();
+    final nombres = await db.getMarcas();
+    if (!mounted) return;
+    setState(() => _marcas = nombres.map((n) => Marca(nombre: n)).toList());
+  }
+
+  Future<void> _crearMarca(String nombre) async {
+    if (nombre.trim().isEmpty) return;
+    final guardada = await DatabaseHelper.instance.agregarMarca(nombre);
+    if (!mounted) return;
+    setState(() {
+      _marcas = [..._marcas, Marca(nombre: guardada)]
+        ..sort((a, b) => a.nombre.compareTo(b.nombre));
+      _marcaController.text = guardada;
+    });
   }
 
   @override
@@ -91,8 +124,30 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
           _unidadMedida != 'lb') {
         _unidadMedida = 'unidad';
       }
+      if (!_unidadDeVentaValida(_unidadVenta)) {
+        _unidadVenta = _unidadMedida;
+      }
     });
   }
+
+  bool _unidadDeVentaValida(String unidad) =>
+      _unidadDeVentaCandidatas.contains(unidad);
+
+  /// Unidades en las que se puede pesar cuando el precio esta en [_unidadMedida].
+  ///
+  /// Solo las que tienen conversion real: si el precio esta en "unidad", no
+  /// tiene sentido ofrecer gramos como unidad de pesaje.
+  List<String> get _unidadDeVentaCandidatas => [
+        _unidadMedida,
+        for (final u in Unidades.todas)
+          if (u != _unidadMedida &&
+              Unidades.factor(origen: u, destino: _unidadMedida) != null)
+            u,
+      ];
+
+  /// Muestra el selector de balanza cuando hay algo distinto a elegir.
+  bool get _mostrarUnidadVenta =>
+      _ventaPorPeso && _unidadDeVentaCandidatas.length > 1;
 
   bool get _porVolumen => _unidadMedida == 'L' || _unidadMedida == 'mL';
 
@@ -111,19 +166,25 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
       id: widget.producto.id,
       nombre: _nombreController.text.trim(),
       codigo: _codigoController.text.trim(),
-      categoria: _categoriaController.text.trim(),
+      categoria: Categorias.normalizar(_categoriaController.text),
       precio: _precio,
       costo: _costo,
       peso: double.tryParse(_medidaController.text) ?? 1.0,
       stock: double.tryParse(_stockController.text) ?? 0.0,
-      marca: _marcaController.text.trim().isEmpty ? null : _marcaController.text.trim(),
+      marca: _marcaController.text.trim().isEmpty
+          ? null
+          : _marcaController.text.trim(),
       unidadMedida: _unidadMedida,
+      unidadVenta: _unidadVenta == _unidadMedida ? null : _unidadVenta,
       iva: _iva,
       ventaPorPeso: _ventaPorPeso,
     );
 
     try {
       await DatabaseHelper.instance.updateProducto(producto.toMap());
+      if (producto.marca != null) {
+        await DatabaseHelper.instance.asegurarMarca(producto.marca!);
+      }
       if (!mounted) return;
       Navigator.pop(context);
     } catch (_) {
@@ -214,13 +275,11 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                         helperText: 'Opcional',
                       ),
                       const SizedBox(height: AppSpacing.sm),
-                      ProductoTextField(
+                      CategoriaSelector(
                         controller: _categoriaController,
-                        label: 'Categoria',
-                        icon: Icons.category_outlined,
-                        textCapitalization: TextCapitalization.sentences,
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Ingresa una categoria' : null,
+                                                validator: (v) => (v == null || v.isEmpty || v.trim().isEmpty)
+                            ? 'Ingresa una categoria'
+                            : null,
                       ),
                     ],
                   ),
@@ -232,44 +291,53 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                   color: AppColors.neonMagenta,
                   child: Column(
                     children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: ProductoTextField(
-                              controller: _marcaController,
-                              label: 'Marca',
-                              icon: Icons.branding_watermark_outlined,
-                              textCapitalization: TextCapitalization.words,
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: _unidadMedida,
-                              isExpanded: true,
-                              borderRadius: BorderRadius.circular(AppShape.md),
-                              icon: const Icon(Icons.unfold_more_rounded, size: 20),
-                              decoration: const InputDecoration(
-                                labelText: 'Unidad',
-                                prefixIcon: Icon(Icons.straighten_rounded, size: 20),
-                              ),
-                              style: theme.textTheme.titleMedium,
-                              items: _unidades
-                                  .map((u) => DropdownMenuItem(value: u, child: Text(u)))
-                                  .toList(),
-                              onChanged: (v) {
-                                if (v != null) setState(() => _unidadMedida = v);
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.md),
                       PresentacionSelector(
                         ventaPorPeso: _ventaPorPeso,
                         unidadMedida: _unidadMedida,
                         onChanged: _alCambiarPresentacion,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      DropdownButtonFormField<String>(
+                        initialValue: _unidadMedida,
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(AppShape.md),
+                        icon: const Icon(Icons.unfold_more_rounded, size: 20),
+                        decoration: InputDecoration(
+                          labelText: _ventaPorPeso
+                              ? 'Unidad en que se cotiza el precio'
+                              : 'Unidad',
+                          prefixIcon:
+                              const Icon(Icons.straighten_rounded, size: 20),
+                        ),
+                        style: theme.textTheme.titleMedium,
+                        items: _unidades
+                            .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+                            .toList(),
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setState(() {
+                            _unidadMedida = v;
+                            if (!_unidadDeVentaValida(_unidadVenta) ||
+                                _unidadVenta == 'unidad') {
+                              _unidadVenta = v;
+                            }
+                          });
+                        },
+                      ),
+                      if (_mostrarUnidadVenta) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        UnidadVentaSelector(
+                          unidadPrecio: _unidadMedida,
+                          unidadVenta: _unidadVenta,
+                          candidatas: _unidadDeVentaCandidatas,
+                          onChanged: (v) => setState(() => _unidadVenta = v),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.md),
+                      MarcaSelector(
+                        controller: _marcaController,
+                        marcas: _marcas,
+                                                onCrear: _crearMarca,
                       ),
                     ],
                   ),
@@ -314,7 +382,8 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                               controller: _stockController,
                               label: labelStock(
                                 porPeso: _ventaPorPeso,
-                                unidadMedida: _unidadMedida,
+                                unidadMedida:
+                                    _ventaPorPeso ? _unidadVenta : _unidadMedida,
                               ),
                               icon: Icons.inventory_rounded,
                               keyboardType: _ventaPorPeso

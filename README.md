@@ -1,6 +1,6 @@
 # 🚀 Scan Products 📦📲
 
-**Versión 2.0.0** · App de inventario y punto de venta para pequeños comercios en Colombia.
+**Versión 2.1.0** · App de inventario y punto de venta para pequeños comercios en Colombia.
 
 Escanea códigos de barras, administra stock y cobra en segundos. Todo funciona
 sin conexión: los datos viven en el dispositivo.
@@ -12,18 +12,27 @@ sin conexión: los datos viven en el dispositivo.
 **Inventario**
 - 📷 Escaneo de códigos de barras para buscar productos y para crear registros nuevos
 - 🔍 Búsqueda en vivo por nombre o código
+- 🗂️ ~80 categorías predeterminadas de tienda de barrio, agrupadas en 10 secciones
+- 🏷️ Marcas reutilizables con autocompletado y creación en línea
 - ⚠️ Filtro de stock bajo con contador en la barra superior
 - ➕ Alta rápida de stock desde la tarjeta del producto
 - ✏️ Crear, editar y eliminar productos
 
+**Precios**
+- 💰 Costo de compra + % de ganancia → precio de venta, con vista previa en vivo
+- 🧾 IVA incluido en el precio, desglosado como base gravable + impuesto
+- ⚖️ **Precio por libra y venta en gramos**: el total se convierte solo
+
 **Punto de venta**
 - 🛒 Carrito con cantidades por peso/volumen o por unidad
+- ⚖️ Vista previa del cobro mientras se escribe la cantidad
 - 💵 Cobro con total en COP y descuento automático de stock
 - 🧾 Detalle de cada línea con unidad de medida
 - ♻️ Anulación de ventas que repone el stock
 
 **Reportes**
 - 📈 Ingresos del día, la semana y el mes
+- 🧮 Desglose de base gravable e IVA acumulado por periodo
 - 🏆 Producto más vendido
 - 🗂️ Historial completo de ventas con detalle
 
@@ -52,6 +61,11 @@ Todo el sistema visual vive en `lib/theme/app_theme.dart`:
 
 Cuando agregues pantallas nuevas, reutiliza estos widgets en lugar de
 `Container` con sombras y colores sueltos: así se mantiene la coherencia.
+
+**Regla de performance:** todo `GlassSurface` dentro de una lista scrolleable
+lleva `blur: false`. Cada `BackdropFilter` es una capa de render propia y con
+scroll dozens de ellas bajan los frames en Android de gama media. Las
+superficies sueltas (app bars, barra de búsqueda, total del cobro) sí lo llevan.
 
 ---
 
@@ -109,6 +123,17 @@ oscuro y claro, para cazar desbordamientos de layout y lecturas incorrectas del
 `ColorScheme`. No usan `pumpAndSettle`: el fondo animado nunca llega a un estado
 estable, así que el pump se hace con un número fijo de frames.
 
+La matemática de negocio tiene su propia suite, sin widgets:
+
+| Archivo | Cubre |
+|---|---|
+| `test/precios_test.dart` | IVA incluido, margen, redondeo |
+| `test/unidades_test.dart` | Conversión entre kg, g, lb, L y mL |
+| `test/carrito_test.dart` | Total de línea con unidades distintas |
+| `test/categorias_test.dart` | Búsqueda y normalización de categorías |
+| `test/venta_test.dart` | Flujo de venta completo, de punta a punta |
+| `test/widgets_test.dart` | Selectores de categoría, marca y unidad |
+
 ---
 
 ## 🗂️ Estructura
@@ -119,9 +144,11 @@ lib/
 ├── theme/
 │   ├── app_theme.dart             Tokens, widgets y ThemeData
 │   └── theme_controller.dart      Persistencia del modo claro/oscuro
-├── models/                        Producto, Venta, VentaDetalle, CarritoItem
+├── data/
+│   └── categorias.dart            ~80 categorías predeterminadas, en secciones
+├── models/                        Producto, Venta, VentaDetalle, CarritoItem, Marca
 ├── services/
-│   └── database_helper.dart       SQLite (3 tablas, versión 7)
+│   └── database_helper.dart       SQLite (4 tablas, versión 8)
 ├── screens/
 │   ├── home_screen.dart           Inventario
 │   ├── add_producto_screen.dart   Alta de producto
@@ -129,40 +156,74 @@ lib/
 │   ├── venta_screen.dart          Punto de venta
 │   ├── historial_ventas_screen.dart
 │   └── reporte_ventas_screen.dart
-├── utils/formatters.dart          Moneda COP, cantidades y fechas
+├── utils/
+│   ├── formatters.dart            Moneda COP, cantidades y fechas
+│   ├── precios.dart               IVA incluido y margen de ganancia
+│   └── unidades.dart              Conversión entre kg, g, lb, L y mL
 └── widgets/
     ├── sidebar.dart               Menú lateral + toggle de tema
     ├── producto_text_field.dart   Campo base
-    └── precio_field.dart          Campo de precio COP
+    ├── precio_field.dart          Campo de precio COP
+    ├── precio_panel.dart          Costo + margen + precio + IVA, en vivo
+    ├── presentacion_selector.dart Unidades vs peso, y unidad de la balanza
+    ├── categoria_selector.dart    Campo de categoría con atajos
+    ├── marca_selector.dart        Autocompletado y creación de marcas
+    └── vista_previa_cobro.dart    Cuánto se cobra mientras se escribe
 ```
 
 ---
 
 ## 🗄️ Base de datos
 
-SQLite, 3 tablas, versión 7. Las migraciones en `_onUpgrade` van de v3 a v7 con
+SQLite, 4 tablas, versión 8. Las migraciones en `_onUpgrade` van de v3 a v8 con
 `ALTER TABLE`; `_createDB` debe mantenerse sincronizada con `_onUpgrade`.
 
 | Tabla | Contenido |
 |---|---|
-| `productos` | id, nombre, codigo (único), categoria, precio, peso, stock, marca, unidad_medida, iva, venta_por_peso |
+| `productos` | id, nombre, codigo (único), categoria, precio, costo, peso, stock, marca, unidad_medida, unidad_venta, iva, venta_por_peso |
+| `marcas` | id, nombre (único), created_at — alimenta el autocompletado |
 | `ventas` | id, total, fecha, estado (`completada` / `anulada`) |
 | `venta_detalles` | líneas de cada venta, con nombre/código/precio como snapshot |
+
+`productos.marca` sigue siendo texto a propósito: un producto escrito a mano no
+depende de que exista la fila en `marcas`. Esa tabla solo sugiere y evita
+escribir la misma marca dos veces.
 
 ---
 
 ## 💡 Detalles de negocio
 
-**Venta por peso o volumen.** El interruptor `ventaPorPeso` junto con
-`unidadMedida` ajusta el teclado, la etiqueta del campo, el icono y el paso de
-incremento del carrito: 0.1 para kg/g/L/mL, 1 para unidades, paquetes y cajas.
+**Dos unidades, no una.** Es la regla que más confunde y la fuente del error más
+caro. Un producto tiene:
+
+| Campo | Qué es | Ejemplo |
+|---|---|---|
+| `unidad_medida` | La unidad en la que está **cotizado** el precio | `lb` |
+| `unidad_venta` | La unidad en la que se **pese** y se cuenta el stock | `g` |
+
+Con la libra a 5.000 y una cebolla de 120 g, `120 g → 0,2646 lb → $1.323`.
+Sin conversión serían 600.000. La conversión vive en `lib/utils/unidades.dart`
+y solo aplica cuando tiene sentido físico: masa↔masa y volumen↔volumen. Entre
+`paquete` y `caja` (o de masa a volumen) **no** se inventa un factor.
+
+**IVA incluido.** El precio de venta ya trae el IVA dentro: el cliente paga
+exactamente lo que ve en la etiqueta. El impuesto solo se extrae para
+informar y reportar, en la venta, en el historial y en el reporte por periodo.
+El total cobrado nunca cambia. La tasa es por línea, así que una venta puede
+mezclar tasas 0/5/10/19 sin romper el desglose.
+
+**Costo y margen.** El "precio base" que se ingresa es el **costo de compra**.
+El margen se aplica sobre el costo (`costo × (1 + margen/100)`), que es como
+piensa el comercio: "gané el 30%" es 30% sobre lo que costó. Si editas el precio
+directamente, el margen se recalcula hacia atrás.
 
 **Stock bajo.** El umbral es 5 unidades (`_umbralStockBajo` en
 `home_screen.dart`). Los productos por debajo se marcan en la lista y se
 pueden filtrar con el botón de alerta.
 
-**IVA.** Se registra y se muestra en la ficha del producto, pero no se aplica
-automáticamente al total de la venta.
+**Stock en unidad de venta.** El `stock` se cuenta en `unidad_venta`, que es lo
+que marca la balanza. Al anular una venta se repone la misma cantidad, así que
+el round-trip cuadra aunque el producto cambie de unidad después.
 
 ---
 

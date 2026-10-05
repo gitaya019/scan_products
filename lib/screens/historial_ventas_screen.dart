@@ -340,7 +340,11 @@ class _DialogoDetalle extends StatelessWidget {
                             Text(
                               '${formatCantidad(d.cantidad, porPeso: d.ventaPorPeso)} x '
                               '${formatCurrency(d.precioUnitario)}'
-                              '${d.ventaPorPeso && d.unidadMedida != null ? ' ${d.unidadMedida}' : ''}',
+                              // Se muestra la unidad en la que se capturo la
+                              // cantidad (la de la balanza), que puede no ser la
+                              // del precio: "0,26 lb x 5.000" frente a
+                              // "120 g x 11".
+                              '${d.ventaPorPeso && (d.unidadVenta ?? d.unidadMedida) != null ? ' ${d.unidadVenta ?? d.unidadMedida}' : ''}',
                               style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12.5),
                             ),
                           ],

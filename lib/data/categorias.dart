@@ -15,9 +15,10 @@ class Categorias {
 
   /// Categorias agrupadas por seccion. El orden de cada grupo va de lo mas
   /// buscado a lo menos buscado.
-  static const List<Map<String, List<String>>> porSeccion = [
-    {
-      'Frescos': [
+  static const List<({String seccion, List<String> categorias})> porSeccion = [
+    (
+      seccion: 'Frescos',
+      categorias: [
         'Frutas',
         'Verduras',
         'Carnes',
@@ -28,9 +29,10 @@ class Categorias {
         'Lacteos',
         'Quesos',
       ],
-    },
-    {
-      'Abarrotes': [
+    ),
+    (
+      seccion: 'Abarrotes',
+      categorias: [
         'Granos',
         'Arroz',
         'Pastas',
@@ -42,9 +44,10 @@ class Categorias {
         'Cafe y te',
         'Fideos y sopas',
       ],
-    },
-    {
-      'Snacks y dulces': [
+    ),
+    (
+      seccion: 'Snacks y dulces',
+      categorias: [
         'Galletas',
         'Chocolates',
         'Confiteria',
@@ -52,9 +55,10 @@ class Categorias {
         'Frutos secos',
         'Barras energeticas',
       ],
-    },
-    {
-      'Bebidas': [
+    ),
+    (
+      seccion: 'Bebidas',
+      categorias: [
         'Gaseosas',
         'Agua',
         'Jugos',
@@ -63,9 +67,10 @@ class Categorias {
         'Bebidas alcoholicas',
         'Tequila y mezcal',
       ],
-    },
-    {
-      'Limpieza y aseo': [
+    ),
+    (
+      seccion: 'Limpieza y aseo',
+      categorias: [
         'Detergente',
         'Suavizante',
         'Blanqueador',
@@ -75,49 +80,54 @@ class Categorias {
         'Toallas de cocina',
         'Bolsas de basura',
       ],
-    },
-    {
-      'Higiene personal': [
+    ),
+    (
+      seccion: 'Higiene personal',
+      categorias: [
         'Shampoo',
         'Jabon de cuerpo',
         'Crema dental',
         'Desodorante',
         'Cuidado facial',
       ],
-    },
-    {
-      'Casa': [
+    ),
+    (
+      seccion: 'Casa',
+      categorias: [
         'Utensilios de cocina',
         'Vajilla',
         'Muebles',
         'Decoracion',
         'Ferreteria',
       ],
-    },
-    {
-      'Mascotas': [
+    ),
+    (
+      seccion: 'Mascotas',
+      categorias: [
         'Comida para perros',
         'Comida para gatos',
         'Arena para gatos',
         'Accesorios para mascotas',
       ],
-    },
-    {
-      'Infantil': [
+    ),
+    (
+      seccion: 'Infantil',
+      categorias: [
         'Pañales',
         'Leche infantil',
         'Papel higienico infantil',
         'Juguetes',
       ],
-    },
-    {
-      'Otros': [
+    ),
+    (
+      seccion: 'Otros',
+      categorias: [
         'Congelados',
         'Comida rapida',
         'Panaderia congelada',
         'Varios',
       ],
-    },
+    ),
   ];
 
   /// Todas las categorias en una sola lista, sin repetir y en orden de
@@ -125,7 +135,7 @@ class Categorias {
   static List<String> get todas {
     final lista = <String>[];
     for (final grupo in porSeccion) {
-      for (final categoria in grupo.values.first) {
+      for (final categoria in grupo.categorias) {
         if (!lista.contains(categoria)) lista.add(categoria);
       }
     }
@@ -145,6 +155,9 @@ class Categorias {
         .take(limite)
         .toList();
   }
+
+  /// Cuantas secciones trae la lista. Se muestra en el desplegable.
+  static int get cantidadSecciones => porSeccion.length;
 
   /// Nombre "bonito" a partir de lo que el usuario escribió en minusculas.
   ///

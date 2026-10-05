@@ -27,10 +27,23 @@ String formatCantidad(double cantidad, {required bool porPeso}) {
   return cantidad.toStringAsFixed(1);
 }
 
-/// Etiqueta del campo de cantidad segun unidad de medida.
+/// Etiqueta del campo de cantidad segun la unidad en la que se captura.
+///
+/// El stock y la cantidad del carrito se cuentan en `unidadVenta`, no en la del
+/// precio, asi que la etiqueta usa la de venta.
 String labelCantidad({required bool porPeso, String? unidadMedida}) {
   if (!porPeso) return 'Cantidad';
-  final unidad = unidadMedida;
+  return _labelMedida(unidadMedida);
+}
+
+/// Etiqueta del campo de stock segun si el producto se vende por peso.
+String labelStock({required bool porPeso, String? unidadMedida}) {
+  if (!porPeso) return 'Stock (unidades)';
+  return 'Stock (${unidadMedida ?? 'unidad'})';
+}
+
+/// Que dice "Peso (kg)", "Volumen (L)" o "Cantidad (paquete)".
+String _labelMedida(String? unidad) {
   if (unidad == null || unidad.isEmpty) return 'Cantidad';
   switch (unidad) {
     case 'kg':
@@ -43,12 +56,6 @@ String labelCantidad({required bool porPeso, String? unidadMedida}) {
     default:
       return 'Cantidad ($unidad)';
   }
-}
-
-/// Etiqueta del campo de stock segun si el producto se vende por peso.
-String labelStock({required bool porPeso, String? unidadMedida}) {
-  if (porPeso) return 'Stock ($unidadMedida)';
-  return 'Stock (unidades)';
 }
 
 /// Fecha legible para historial: "12 mar 2026, 09:41"

@@ -1,4 +1,7 @@
-﻿class Producto {
+﻿import '../utils/precios.dart';
+import '../utils/unidades.dart';
+
+class Producto {
   int? id;
   String nombre;
   String? codigo;
@@ -13,7 +16,19 @@
   double peso;
   double stock;
   String? marca;
+
+  /// Unidad en la que esta **cotizado** el precio.
+  ///
+  /// "5.000 por lb" -> `'lb'`.
   String? unidadMedida;
+
+  /// Unidad en la que se **pese y se cuenta el stock**.
+  ///
+  /// Puede ser distinta de [unidadMedida]: la libra vale 5.000 pero la balanza
+  /// del local lee gramos, asi que se captura 120 y se cobra la fraccion de
+  /// libra que eso pesa. `null` significa "la misma que [unidadMedida]", que es
+  /// lo que entienden los productos que ya estaban en la base.
+  String? unidadVenta;
 
   /// IVA como porcentaje (19 = 19%). El precio ya lo incluye.
   double iva;
@@ -30,9 +45,35 @@
     this.stock = 0.0,
     this.marca,
     this.unidadMedida,
+    this.unidadVenta,
     this.iva = 0.0,
     this.ventaPorPeso = false,
   });
+
+  /// Unidad efectiva de venta, resolviendo el `null` heredado.
+  String get unidad => ventaPorPeso
+      ? (unidadVenta ?? unidadMedida ?? 'kg')
+      : (unidadMedida ?? 'unidad');
+
+  /// Unidad real en la que se expresa el precio.
+  String get unidadPrecio => unidadMedida ?? 'unidad';
+
+  /// Si la unidad de venta difiere de la del precio **y** hay conversion.
+  ///
+  /// Comprueba tambien que la conversion exista: si las unidades no son
+  /// compatibles (masa contra volumen, o una unidad sin definir) no se toca el
+  /// total, porque un factor inventado seria peor que no convertir.
+  bool get necesitaConversion =>
+      unidad != unidadPrecio &&
+      Unidades.factor(origen: unidad, destino: unidadPrecio) != null;
+
+  /// Que dice la equivalencia, o `null` si no hay conversion que explicar.
+  String? get equivalencia => necesitaConversion
+      ? Unidades.equivalencia(
+          unidadVenta: unidad,
+          unidadPrecio: unidadPrecio,
+        )
+      : null;
 
   /// Ganancia en pesos por unidad: precio de venta menos costo.
   double get ganancia => precio - costo;
@@ -41,13 +82,13 @@
   ///
   /// Devuelve 0 cuando el costo es 0 porque el margen seria infinito y no
   /// significa nada util para mostrar.
-  double get margen => costo > 0 ? ganancia / costo * 100 : 0;
+  double get margen => Precios.margenDesdePrecios(costo, precio);
 
   /// Parte del precio que es base gravable (precio sin IVA).
-  double get baseSinIVA => precio / (1 + iva / 100);
+  double get baseSinIVA => Precios.precioSinIVA(precio, iva);
 
   /// Parte del precio que corresponde a impuesto.
-  double get ivaContenido => precio - baseSinIVA;
+  double get ivaContenido => Precios.ivaIncluido(precio, iva);
 
   Map<String, dynamic> toMap() {
     return {
@@ -61,6 +102,7 @@
       'stock': stock,
       'marca': marca,
       'unidad_medida': unidadMedida,
+      'unidad_venta': unidadVenta,
       'iva': iva,
       'venta_por_peso': ventaPorPeso ? 1 : 0,
     };
@@ -90,6 +132,9 @@
       stock: _aDoble(map['stock']),
       marca: map['marca'],
       unidadMedida: map['unidad_medida'],
+      // Columna agregada en la v8. `null` se resuelve a la unidad del precio,
+      // asi que los productos anteriores se comportan igual que antes.
+      unidadVenta: map['unidad_venta'],
       iva: _aDoble(map['iva']),
       ventaPorPeso: map['venta_por_peso'] == 1,
     );

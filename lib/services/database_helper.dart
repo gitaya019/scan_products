@@ -76,7 +76,7 @@ class DatabaseHelper {
       CREATE TABLE marcas(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL UNIQUE,
-       created_at TEXT
+        created_at TEXT
       )
     ''');
   }
@@ -252,6 +252,7 @@ class DatabaseHelper {
           'cantidad': item.cantidad,
           'subtotal': item.subtotal,
           'unidad_medida': item.producto.unidadMedida,
+          'unidad_venta': item.producto.unidadVenta,
           'venta_por_peso': item.producto.ventaPorPeso ? 1 : 0,
           'iva': item.producto.iva,
         });
@@ -259,6 +260,77 @@ class DatabaseHelper {
 
       return ventaId;
     });
+  }
+
+  // --- Marcas -------------------------------------------------------------
+
+  /// Marcas ordenadas alfabeticamente, para el autocompletado del formulario.
+  Future<List<String>> getMarcas() async {
+    final db = await database;
+    final result = await db.query('marcas', orderBy: 'nombre COLLATE NOCASE ASC');
+    return result.map((e) => e['nombre'] as String).toList();
+  }
+
+  /// Marca por nombre (sin distinguir mayusculas), o `null` si no existe.
+  Future<String?> getMarca(String nombre) async {
+    final limpio = nombre.trim();
+    if (limpio.isEmpty) return null;
+
+    final db = await database;
+    final result = await db.query(
+      'marcas',
+      where: 'nombre = ? COLLATE NOCASE',
+      whereArgs: [limpio],
+      limit: 1,
+    );
+    return result.isEmpty ? null : result.first['nombre'] as String;
+  }
+
+  /// Registra una marca y devuelve el nombre canonico.
+  ///
+  /// Si ya existe (con otra capitalizacion) devuelve la que habia en vez de
+  /// fallar: "alfa" y "Alfa" no pueden ser dos marcas distintas.
+  Future<String> agregarMarca(String nombre) async {
+    final limpio = nombre.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (limpio.isEmpty) return '';
+
+    final existente = await getMarca(limpio);
+    if (existente != null) return existente;
+
+    final db = await database;
+    await db.insert('marcas', {
+      'nombre': limpio,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+    return limpio;
+  }
+
+  /// Registra la marca si falta y devuelve la que quedo, sin fallar nunca.
+  ///
+  /// Se usa al guardar un producto: que la marca sea nueva nunca debe impedir
+  /// registrar la venta, asi que un error de escritura se ignora y se devuelve
+  /// el nombre tal cual lo escribio el usuario.
+  Future<String> asegurarMarca(String nombre) async {
+    try {
+      final agregada = await agregarMarca(nombre);
+      return agregada.isEmpty ? nombre.trim() : agregada;
+    } catch (_) {
+      return nombre.trim();
+    }
+  }
+
+  /// Marcas que aparecen en productos, incluidas las que no estan en la tabla
+  /// `marcas` (base creada antes de que existiera).
+  Future<void> sincronizarMarcasDesdeProductos() async {
+    final db = await database;
+    final resultado = await db.rawQuery('''
+      SELECT DISTINCT marca FROM productos
+      WHERE marca IS NOT NULL AND TRIM(marca) <> ''
+    ''');
+
+    for (final fila in resultado) {
+      await asegurarMarca(fila['marca'] as String);
+    }
   }
 
   Future<List<Venta>> getVentas() async {
