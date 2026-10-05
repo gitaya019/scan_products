@@ -1,388 +1,540 @@
-﻿import 'package:flutter/material.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
-import '../services/database_helper.dart';
-import '../models/producto_model.dart';
-import '../widgets/producto_text_field.dart';
-import '../widgets/precio_field.dart';
-import '../utils/formatters.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
+import '../models/producto_model.dart';
+import '../services/database_helper.dart';
+import '../theme/app_theme.dart';
+import '../utils/formatters.dart';
+import '../utils/precios.dart';
+import '../widgets/precio_panel.dart';
+import '../widgets/presentacion_selector.dart';
+import '../widgets/producto_text_field.dart';
+
+/// Formulario para registrar un producto nuevo.
+///
+/// Si el codigo de barras ya existe, en lugar de crear un duplicado se ofrece
+/// sumar stock al producto existente.
 class AddProductoScreen extends StatefulWidget {
+  const AddProductoScreen({super.key});
+
   @override
-  _AddProductoScreenState createState() => _AddProductoScreenState();
+  State<AddProductoScreen> createState() => _AddProductoScreenState();
 }
 
 class _AddProductoScreenState extends State<AddProductoScreen> {
+  static const List<String> _unidades = [
+    'unidad', 'kg', 'g', 'lb', 'L', 'mL', 'paquete', 'caja', //
+  ];
+
   final _formKey = GlobalKey<FormState>();
   final _nombreController = TextEditingController();
   final _codigoController = TextEditingController();
   final _categoriaController = TextEditingController();
-  final _precioController = TextEditingController();
-  final _pesoController = TextEditingController();
-  final _stockController = TextEditingController();
   final _marcaController = TextEditingController();
+  final _medidaController = TextEditingController();
+  final _stockController = TextEditingController();
 
-  bool _ventaPorPeso = false;
   String _unidadMedida = 'unidad';
-  final _ivaController = TextEditingController();
+  bool _ventaPorPeso = false;
+  bool _guardando = false;
 
-  final _unidades = ['kg', 'g', 'lb', 'L', 'mL', 'unidad', 'paquete', 'caja'];
+  // Costo, precio e IVA los administra `PrecioPanel`, que los mantiene
+  // sincronizados entre si y los reporta por aqui para armar el `Producto`.
+  double _costo = 0;
+  double _precio = 0;
+  double _iva = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    _medidaController.text = '1';
+  }
 
   @override
   void dispose() {
     _nombreController.dispose();
     _codigoController.dispose();
     _categoriaController.dispose();
-    _precioController.dispose();
-    _pesoController.dispose();
-    _stockController.dispose();
     _marcaController.dispose();
-    _ivaController.dispose();
+    _medidaController.dispose();
+    _stockController.dispose();
     super.dispose();
   }
 
-  Future<void> _scanBarcode() async {
-    var result = await BarcodeScanner.scan();
+  /// Unidades que se venden por conteo, no por medida.
+  static const Set<String> _unidadesDeConteo = {'unidad', 'paquete', 'caja'};
+
+  /// Al pasar a venta por peso/volumen la unidad actual suele quedar sin
+  /// sentido ("Queso" medido en `paquete`), asi que se propone una coherente.
+  /// Solo se cambia si el usuario no habia escogido algo que ya sirva.
+  void _alCambiarPresentacion(bool porPeso) {
     setState(() {
-      _codigoController.text = result.rawContent;
+      _ventaPorPeso = porPeso;
+      if (porPeso && _unidadesDeConteo.contains(_unidadMedida)) {
+        _unidadMedida = 'kg';
+      } else if (!porPeso &&
+          !_unidadesDeConteo.contains(_unidadMedida) &&
+          _unidadMedida != 'kg' &&
+          _unidadMedida != 'lb') {
+        _unidadMedida = 'unidad';
+      }
     });
-
-    final productoExistente =
-        await DatabaseHelper.instance.getProductoByCodigo(result.rawContent);
-    if (productoExistente != null) {
-      _showUpdateStockDialog(productoExistente);
-    }
   }
 
-  Future<void> _showUpdateStockDialog(Producto producto) async {
-    final cantidadController = TextEditingController();
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("Producto Existente"),
-          content: TextField(
-            controller: cantidadController,
-            decoration: InputDecoration(labelText: "Cantidad a agregar"),
-            keyboardType: TextInputType.number,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: Text("Cancelar"),
-            ),
-            TextButton(
-              onPressed: () async {
-                final cantidad = double.tryParse(cantidadController.text) ?? 0.0;
-                if (cantidad > 0) {
-                  await DatabaseHelper.instance
-                      .updateStock(producto.codigo, cantidad, id: producto.id);
-                  Navigator.pop(context);
-                  Navigator.pop(context);
-                }
-              },
-              child: Text("Agregar"),
-            ),
-          ],
-        );
-      },
-    );
+  bool get _porVolumen => _unidadMedida == 'L' || _unidadMedida == 'mL';
+
+  IconData get _iconoMedida {
+    if (_porVolumen) return Icons.water_drop_rounded;
+    if (_ventaPorPeso) return Icons.scale_rounded;
+    return Icons.inventory_2_rounded;
   }
 
-  String _pesoLabel() {
-    switch (_unidadMedida) {
-      case 'kg':
-        return 'Peso (kg)';
-      case 'g':
-        return 'Peso (g)';
-      case 'lb':
-        return 'Peso (lb)';
-      case 'L':
-        return 'Volumen (L)';
-      case 'mL':
-        return 'Volumen (mL)';
-      default:
-        return 'Cantidad';
-    }
-  }
+  Future<void> _escanear() async {
+    try {
+      final resultado = await BarcodeScanner.scan();
+      final codigo = resultado.rawContent;
+      if (codigo.isEmpty) return;
 
-  String _stockLabel() {
-    if (_ventaPorPeso) return 'Stock ($_unidadMedida)';
-    return 'Stock (unidades)';
-  }
+      setState(() => _codigoController.text = codigo);
 
-  IconData _pesoIcon() {
-    switch (_unidadMedida) {
-      case 'L':
-      case 'mL':
-        return Icons.water_drop_outlined;
-      case 'unidad':
-      case 'paquete':
-      case 'caja':
-        return Icons.inventory_2_outlined;
-      default:
-        return Icons.monitor_weight_outlined;
-    }
-  }
-  Widget _seccionHeader(String titulo) {
-    return Text(
-      titulo,
-      style: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: Theme.of(context).colorScheme.primary,
-        letterSpacing: 0.5,
-      ),
-    );
-  }
-
-  Future<void> _saveProducto() async {
-    if (_formKey.currentState!.validate()) {
-      final producto = Producto(
-        nombre: _nombreController.text,
-        codigo: _codigoController.text,
-        categoria: _categoriaController.text,
-        precio: parseCurrency(_precioController.text),
-        peso: double.parse(_pesoController.text),
-        stock: double.parse(_stockController.text),
-        marca: _marcaController.text.isEmpty ? null : _marcaController.text,
-        unidadMedida: _unidadMedida,
-        iva: double.tryParse(_ivaController.text) ?? 0.0,
-        ventaPorPeso: _ventaPorPeso,
+      final existente = await DatabaseHelper.instance.getProductoByCodigo(codigo);
+      if (existente != null && mounted) {
+        await _ofrecerSumarStock(existente);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo leer el codigo de barras')),
       );
+    }
+  }
 
-      await DatabaseHelper.instance.addProducto(producto.toMap());
+  Future<void> _ofrecerSumarStock(Producto producto) async {
+    final cantidad = await showDialog<double>(
+      context: context,
+      builder: (ctx) => _DialogoStockProducto(producto: producto),
+    );
+
+    if (cantidad != null && cantidad > 0) {
+      await DatabaseHelper.instance
+          .updateStock(producto.codigo, cantidad, id: producto.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Stock actualizado en "${producto.nombre}"'),
+          backgroundColor: AppColors.success.withValues(alpha: 0.9),
+        ),
+      );
       Navigator.pop(context);
+    }
+  }
+
+  Future<void> _guardar() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _guardando = true);
+
+    final producto = Producto(
+      nombre: _nombreController.text.trim(),
+      codigo: _codigoController.text.trim(),
+      categoria: _categoriaController.text.trim(),
+      precio: _precio,
+      costo: _costo,
+      peso: double.tryParse(_medidaController.text) ?? 1.0,
+      stock: double.tryParse(_stockController.text) ?? 0.0,
+      marca: _marcaController.text.trim().isEmpty ? null : _marcaController.text.trim(),
+      unidadMedida: _unidadMedida,
+      iva: _iva,
+      ventaPorPeso: _ventaPorPeso,
+    );
+
+    try {
+      await DatabaseHelper.instance.addProducto(producto.toMap());
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _guardando = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo guardar. Revisa que el codigo no este repetido.'),
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        elevation: 0,
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return AuroraBackground(
+      dark: isDark,
+      child: Scaffold(
         backgroundColor: Colors.transparent,
-        title: Text(
-          "Agregar Producto",
-          style: TextStyle(
-              color: Colors.black87, fontWeight: FontWeight.w300, fontSize: 22),
-        ),
-        iconTheme: IconThemeData(color: Colors.black54),
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8),
+        appBar: AppBar(title: const Text('Nuevo producto')),
+        body: SafeArea(
           child: Form(
             key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.xs,
+                AppSpacing.md,
+                AppSpacing.xl,
+              ),
               children: [
-                _seccionHeader("Información del Producto"),
-                SizedBox(height: 12),
-                ProductoTextField(
-                  controller: _nombreController,
-                  label: "Nombre del Producto",
-                  icon: Icons.shopping_basket_outlined,
-                  validator: (value) =>
-                      value!.isEmpty ? "Ingrese un nombre" : null,
+                _EncabezadoSeccion(
+                  icono: Icons.info_outline_rounded,
+                  titulo: 'Identificacion',
+                  color: AppColors.neonCyan,
                 ),
-                SizedBox(height: 14),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: ProductoTextField(
-                        controller: _codigoController,
-                        label: "Código de Barras (opcional)",
-                        icon: Icons.barcode_reader,
+                const SizedBox(height: AppSpacing.sm),
+                GlassSurface(
+                  blur: false,
+                  child: Column(
+                    children: [
+                      ProductoTextField(
+                        controller: _nombreController,
+                        label: 'Nombre del producto',
+                        icon: Icons.shopping_basket_outlined,
+                        textCapitalization: TextCapitalization.sentences,
+                        validator: (v) =>
+                            (v == null || v.trim().isEmpty) ? 'Ingresa un nombre' : null,
                       ),
-                    ),
-                    SizedBox(width: 10),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
+                      const SizedBox(height: AppSpacing.sm),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: ProductoTextField(
+                              controller: _codigoController,
+                              label: 'Codigo de barras',
+                              icon: Icons.barcode_reader,
+                              helperText: 'Opcional',
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: GlassIconButton(
+                              icon: Icons.qr_code_scanner_rounded,
+                              tooltip: 'Escanear codigo',
+                              size: 52,
+                              color: isDark ? AppColors.neonCyan : AppColors.neonViolet,
+                              onPressed: _escanear,
+                            ),
                           ),
                         ],
                       ),
-                      child: IconButton(
-                        icon: Icon(Icons.camera_alt_outlined,
-                            color: Colors.black54),
-                        onPressed: _scanBarcode,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 14),
-                ProductoTextField(
-                  controller: _categoriaController,
-                  label: "Categoría",
-                  icon: Icons.category_outlined,
-                  validator: (value) =>
-                      value!.isEmpty ? "Ingrese una categoría" : null,
-                ),
-                SizedBox(height: 24),
-                _seccionHeader("Detalles del Producto"),
-                SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ProductoTextField(
-                        controller: _marcaController,
-                        label: "Marca",
-                        icon: Icons.branding_watermark_outlined,
-                      ),
-                    ),
-                    SizedBox(width: 14),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _unidadMedida,
-                        decoration: InputDecoration(
-                          labelText: "Unidad",
-                          prefixIcon: Icon(Icons.scale_outlined,
-                              color: Colors.black54),
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey.shade200),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey.shade200),
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                              vertical: 16, horizontal: 16),
-                          labelStyle: TextStyle(color: Colors.black54),
-                        ),
-                        items: _unidades.map((u) {
-                          return DropdownMenuItem(
-                            value: u,
-                            child: Text(u),
-                          );
-                        }).toList(),
-                        onChanged: (v) {
-                          if (v != null) setState(() => _unidadMedida = v);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 8),
-                Container(
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
+                      const SizedBox(height: AppSpacing.sm),
+                      ProductoTextField(
+                        controller: _categoriaController,
+                        label: 'Categoria',
+                        icon: Icons.category_outlined,
+                        textCapitalization: TextCapitalization.sentences,
+                        validator: (v) =>
+                            (v == null || v.trim().isEmpty) ? 'Ingresa una categoria' : null,
                       ),
                     ],
                   ),
-                  child: SwitchListTile(
-                    title: const Text("Vender por peso",
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                    subtitle: Text(
-                      _ventaPorPeso
-                          ? "Se vende en $_unidadMedida (decimal)"
-                          : "Se vende por unidad (entero)",
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
-                    ),
-                    value: _ventaPorPeso,
-                    onChanged: (v) => setState(() => _ventaPorPeso = v),
-                    secondary: Icon(
-                      _ventaPorPeso ? Icons.scale : Icons.inventory_2_outlined,
-                      color: Colors.black54,
-                    ),
-                    activeColor: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _EncabezadoSeccion(
+                  icono: Icons.tune_rounded,
+                  titulo: 'Presentacion',
+                  color: AppColors.neonMagenta,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                GlassSurface(
+                  blur: false,
+                  child: Column(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: ProductoTextField(
+                              controller: _marcaController,
+                              label: 'Marca',
+                              icon: Icons.branding_watermark_outlined,
+                              textCapitalization: TextCapitalization.words,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: _DropdownUnidad(
+                              valor: _unidadMedida,
+                              items: _unidades,
+                              onChanged: (v) {
+                                if (v != null) setState(() => _unidadMedida = v);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      PresentacionSelector(
+                        ventaPorPeso: _ventaPorPeso,
+                        unidadMedida: _unidadMedida,
+                        onChanged: _alCambiarPresentacion,
+                      ),
+                    ],
                   ),
                 ),
-                SizedBox(height: 24),
-                _seccionHeader("Precio y Stock"),
-                SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: PrecioField(
-                        controller: _precioController,
-                        validator: (value) =>
-                            value!.isEmpty ? "Ingrese un precio" : null,
-                      ),
-                    ),
-                    SizedBox(width: 14),
-                    Expanded(
-                      child: ProductoTextField(
-                        controller: _pesoController,
-                        label: _pesoLabel(),
-                        icon: _pesoIcon(),
-                        keyboardType:
-                            TextInputType.numberWithOptions(decimal: true),
-                        validator: (value) =>
-                            value!.isEmpty ? "Ingrese un peso" : null,
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: AppSpacing.md),
+                _EncabezadoSeccion(
+                  icono: Icons.sell_outlined,
+                  titulo: 'Precio y existencias',
+                  color: AppColors.neonLime,
                 ),
-                SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ProductoTextField(
-                        controller: _stockController,
-                        label: _stockLabel(),
-                        icon: Icons.inventory,
-                        keyboardType: TextInputType.numberWithOptions(decimal: _ventaPorPeso),
-                        validator: (value) =>
-                            value!.isEmpty ? "Ingrese un stock" : null,
+                const SizedBox(height: AppSpacing.sm),
+                GlassSurface(
+                  blur: false,
+                  child: Column(
+                    children: [
+                      PrecioPanel(
+                        costoInicial: 0,
+                        precioInicial: 0,
+                        ivaInicial: Precios.tasaPorDefecto,
+                        onCambio: (v) {
+                          _costo = v.costo;
+                          _precio = v.precio;
+                          _iva = v.iva;
+                        },
                       ),
-                    ),
-                    SizedBox(width: 14),
-                    Expanded(
-                      child: ProductoTextField(
-                        controller: _ivaController,
-                        label: "IVA",
-                        icon: Icons.receipt_long_outlined,
-                        keyboardType: TextInputType.number,
-                        suffixText: "%",
+                      const SizedBox(height: AppSpacing.md),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: ProductoTextField(
+                              controller: _medidaController,
+                              label: labelCantidad(
+                                porPeso: _ventaPorPeso,
+                                unidadMedida: _unidadMedida,
+                              ),
+                              icon: _iconoMedida,
+                              keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
+                              helperText: 'Contenido por unidad de venta',
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: ProductoTextField(
+                              controller: _stockController,
+                              label: labelStock(
+                                porPeso: _ventaPorPeso,
+                                unidadMedida: _unidadMedida,
+                              ),
+                              icon: Icons.inventory_rounded,
+                              keyboardType: _ventaPorPeso
+                                  ? const TextInputType.numberWithOptions(decimal: true)
+                                  : TextInputType.number,
+                              validator: (v) =>
+                                  (v == null || v.trim().isEmpty) ? 'Ingresa el stock' : null,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                SizedBox(height: 32),
-                ElevatedButton(
-                  onPressed: _saveProducto,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 2,
-                  ),
-                  child: Text(
-                    "Guardar Producto",
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500),
-                  ),
+                const SizedBox(height: AppSpacing.lg),
+                NeonButton(
+                  label: 'Guardar producto',
+                  icon: Icons.check_rounded,
+                  loading: _guardando,
+                  onPressed: _guardando ? null : _guardar,
+                ),
+              ],
+            )
+                .animate()
+                .fadeIn(duration: AppDuration.medium)
+                .slideY(begin: 0.04, curve: Curves.easeOutCubic),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EncabezadoSeccion extends StatelessWidget {
+  final IconData icono;
+  final String titulo;
+  final Color color;
+
+  const _EncabezadoSeccion({
+    required this.icono,
+    required this.titulo,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      children: [
+        Container(
+          height: 22,
+          width: 22,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(AppShape.xs),
+          ),
+          child: Icon(icono, size: 13, color: color),
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        Text(
+          titulo.toUpperCase(),
+          style: theme.textTheme.labelSmall?.copyWith(color: color),
+        ),
+      ],
+    );
+  }
+}
+
+class _DropdownUnidad extends StatelessWidget {
+  final String valor;
+  final List<String> items;
+  final ValueChanged<String?> onChanged;
+
+  const _DropdownUnidad({
+    required this.valor,
+    required this.items,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return DropdownButtonFormField<String>(
+      initialValue: valor,
+      isExpanded: true,
+      borderRadius: BorderRadius.circular(AppShape.md),
+      icon: const Icon(Icons.unfold_more_rounded, size: 20),
+      decoration: const InputDecoration(
+        labelText: 'Unidad',
+        prefixIcon: Icon(Icons.straighten_rounded, size: 20),
+      ),
+      style: theme.textTheme.titleMedium,
+      items: items
+          .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+          .toList(),
+      onChanged: onChanged,
+    );
+  }
+}
+
+/// Dialogo para sumar stock cuando el codigo de barras ya existe.
+class _DialogoStockProducto extends StatefulWidget {
+  final Producto producto;
+
+  const _DialogoStockProducto({required this.producto});
+
+  @override
+  State<_DialogoStockProducto> createState() => _DialogoStockProductoState();
+}
+
+class _DialogoStockProductoState extends State<_DialogoStockProducto> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.producto.ventaPorPeso ? '1.0' : '1');
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final producto = widget.producto;
+
+    return AlertDialog(
+      title: Row(
+        children: [
+          Container(
+            height: 38,
+            width: 38,
+            decoration: BoxDecoration(
+              color: AppColors.neonAmber.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(AppShape.sm),
+            ),
+            child: const Icon(Icons.inventory_rounded,
+                color: AppColors.neonAmber, size: 20),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Ya existe', style: theme.textTheme.titleLarge),
+                Text(
+                  producto.nombre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium,
                 ),
               ],
             ),
           ),
-        ),
+        ],
       ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Este codigo ya esta registrado. Puedes sumar stock al producto existente en lugar de crear uno nuevo.',
+            style: theme.textTheme.bodyLarge,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            keyboardType: producto.ventaPorPeso
+                ? const TextInputType.numberWithOptions(decimal: true)
+                : TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+            ],
+            decoration: InputDecoration(
+              labelText: labelCantidad(
+                porPeso: producto.ventaPorPeso,
+                unidadMedida: producto.unidadMedida,
+              ),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'Cancelar',
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
+        NeonButton(
+          label: 'Sumar stock',
+          compact: true,
+          expand: false,
+          onPressed: () {
+            final valor = double.tryParse(_controller.text) ?? 0;
+            Navigator.pop(context, valor > 0 ? valor : null);
+          },
+        ),
+      ],
     );
   }
 }

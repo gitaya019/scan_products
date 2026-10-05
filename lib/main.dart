@@ -1,34 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'screens/home_screen.dart';
+import 'theme/app_theme.dart';
+import 'theme/theme_controller.dart';
 
 void main() {
-  runApp(MyApp());
-
-  // Establecer la orientación de la pantalla a solo vertical
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp, // Vertical normal
-    DeviceOrientation.portraitDown, // Vertical invertida
-  ]).then((_) {
-    runApp(MyApp());
-  });
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const ScanProductsApp());
 }
 
-class MyApp extends StatelessWidget {
+class ScanProductsApp extends StatefulWidget {
+  const ScanProductsApp({super.key});
+
+  @override
+  State<ScanProductsApp> createState() => _ScanProductsAppState();
+}
+
+class _ScanProductsAppState extends State<ScanProductsApp> {
+  final ThemeController _themeController = ThemeController();
+
+  @override
+  void dispose() {
+    _themeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Solo vertical: la app es una herramienta de mostrador.
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Tienda Productos',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.lightBlue,
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        typography: Typography.material2021(),
-        fontFamily: 'Roboto',
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: _themeController,
+      builder: (context, mode, _) => MaterialApp(
+        title: 'Scan Products',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        themeMode: mode,
+        home: HomeScreen(themeController: _themeController),
       ),
-      home: HomeScreen(),
     );
   }
 }

@@ -5,6 +5,20 @@ allprojects {
     }
 }
 
+// `barcode_scan2` declara `compileSdkVersion 31`, pero sus dependencias de
+// androidx (annotation-experimental 1.4.0) exigen compilar contra la API 34 o
+// superior. Sin esto el build release falla con un error de "compile against
+// version 34 or later" atribuido a la libreria, no a la app.
+subprojects {
+    afterEvaluate { project ->
+        if (project.plugins.hasPlugin('com.android.library')) {
+            project.android {
+                compileSdk = 36
+            }
+        }
+    }
+}
+
 rootProject.buildDir = "../build"
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"

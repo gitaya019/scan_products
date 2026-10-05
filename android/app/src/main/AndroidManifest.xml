@@ -1,12 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Escaneo de codigos de barras -->
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- La bandera de Colombia en el menu lateral -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
-        android:label="scan_products"
+        android:label="Scan Products"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

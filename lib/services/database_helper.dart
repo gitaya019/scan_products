@@ -1,28 +1,47 @@
-﻿import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
-import '../models/producto_model.dart';
-import '../models/venta_model.dart';
-import '../models/venta_detalle.dart';
+﻿import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+
 import '../models/carrito_item.dart';
+import '../models/producto_model.dart';
+import '../models/venta_detalle.dart';
+import '../models/venta_model.dart';
+import '../utils/precios.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
+  /// Ruta o nombre del archivo de base de datos.
+  ///
+  /// Solo se sobreescribe desde las pruebas para usar una base en memoria
+  /// (`:memory:`). En la app siempre es `productos.db`.
+  static String databasePath = 'productos.db';
+
   DatabaseHelper._init();
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('productos.db');
+    _database = await _initDB(databasePath);
     return _database!;
   }
 
-  Future<Database> _initDB(String filePath) async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, filePath);
+  /// Cierra la base de datos en cache. Util para reiniciar entre pruebas.
+  Future<void> close() async {
+    await _database?.close();
+    _database = null;
+  }
 
-    return await openDatabase(
-        path, version: 7, onCreate: _createDB, onUpgrade: _onUpgrade);
+  Future<Database> _initDB(String filePath) async {
+    final path = filePath == ':memory:'
+        ? inMemoryDatabasePath
+        : join(await getDatabasesPath(), filePath);
+
+    return openDatabase(
+      path,
+      version: 8,
+      onCreate: _createDB,
+      onUpgrade: _onUpgrade,
+    );
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -33,15 +52,33 @@ class DatabaseHelper {
         codigo TEXT UNIQUE,
         categoria TEXT,
         precio REAL,
+        costo REAL DEFAULT 0.0,
         peso REAL,
         stock REAL DEFAULT 0.0,
         marca TEXT,
         unidad_medida TEXT,
+        unidad_venta TEXT,
         iva REAL DEFAULT 0.0,
         venta_por_peso INTEGER DEFAULT 0
       )
     ''');
+    await _createMarcas(db);
     await _createVentasTables(db);
+  }
+
+  /// Marcas registradas, para el selector con creacion en linea.
+  ///
+  /// `productos.marca` sigue siendo TEXT a proposito: asi un producto escrito a
+  /// mano con "Alfa" no depende de que exista la fila. Esta tabla solo alimenta
+  /// el autocompletado y permite no escribir la marca dos veces.
+  Future<void> _createMarcas(Database db) async {
+    await db.execute('''
+      CREATE TABLE marcas(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL UNIQUE,
+       created_at TEXT
+      )
+    ''');
   }
 
   Future<void> _createVentasTables(Database db) async {
@@ -53,6 +90,8 @@ class DatabaseHelper {
         estado TEXT DEFAULT 'completada'
       )
     ''');
+    // Las columnas deben coincidir con las de _onUpgrade (v4 -> v8), si no
+    // una instalacion nueva fallaria al registrar la primera venta.
     await db.execute('''
       CREATE TABLE venta_detalles(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,7 +102,10 @@ class DatabaseHelper {
         precio_unitario REAL,
         cantidad REAL,
         subtotal REAL,
+        unidad_medida TEXT,
+        unidad_venta TEXT,
         venta_por_peso INTEGER DEFAULT 0,
+        iva REAL DEFAULT 0.0,
         FOREIGN KEY (venta_id) REFERENCES ventas(id) ON DELETE CASCADE
       )
     ''');
@@ -92,35 +134,56 @@ class DatabaseHelper {
       await db.execute(
           "ALTER TABLE venta_detalles ADD COLUMN venta_por_peso INTEGER DEFAULT 0");
     }
+    if (oldVersion < 8) {
+      // v8: costo de compra, unidad de venta y tasa de IVA por linea.
+      //
+      // - `costo`: para saber cuanto se gano por unidad.
+      // - `unidad_venta`: el precio puede estar en una unidad (lb) y la balanza
+      //   leer otra (g). Antes no habia forma de expresar esa diferencia.
+      // - `iva`: el precio ya incluye impuesto, asi que se guarda la tasa para
+      //   poder reportar cuanto contenia cada venta sin tocar el total cobrado.
+      //
+      // Los productos ya existentes se quedan con costo 0 (ganancia
+      // desconocida) y con `unidad_venta` en NULL, que se interpreta como
+      // "misma unidad que el precio".
+      await db.execute(
+          "ALTER TABLE productos ADD COLUMN costo REAL DEFAULT 0.0");
+      await db.execute(
+          "ALTER TABLE productos ADD COLUMN unidad_venta TEXT");
+      await db.execute(
+          "ALTER TABLE venta_detalles ADD COLUMN iva REAL DEFAULT 0.0");
+      await db.execute(
+          "ALTER TABLE venta_detalles ADD COLUMN unidad_venta TEXT");
+      await _createMarcas(db);
+    }
   }
 
   Future<int> addProducto(Map<String, dynamic> producto) async {
     final db = await database;
-    return await db.insert('productos', producto);
+    return db.insert('productos', producto);
   }
 
   Future<List<Map<String, dynamic>>> getProductos() async {
     final db = await database;
-    return await db.query('productos');
+    return db.query('productos');
   }
 
+  /// Aplica un delta al stock del producto, sumando si es positivo y restando
+  /// si es negativo (por ejemplo al cobrar una venta).
   Future<int> updateStock(String? codigo, double cantidad, {int? id}) async {
     final db = await database;
-    if (codigo != null && codigo.isNotEmpty) {
-      return await db.rawUpdate(
-        'UPDATE productos SET stock = stock + ? WHERE codigo = ?',
-        [cantidad, codigo],
-      );
-    }
-    return await db.rawUpdate(
-      'UPDATE productos SET stock = stock + ? WHERE id = ?',
-      [cantidad, id],
+    final where = (codigo != null && codigo.isNotEmpty) ? 'codigo = ?' : 'id = ?';
+    final argumento = (codigo != null && codigo.isNotEmpty) ? codigo : id;
+
+    return db.rawUpdate(
+      'UPDATE productos SET stock = stock + ? WHERE $where',
+      [cantidad, argumento],
     );
   }
 
   Future<int> updateProducto(Map<String, dynamic> producto) async {
     final db = await database;
-    return await db.update(
+    return db.update(
       'productos',
       producto,
       where: 'id = ?',
@@ -130,7 +193,7 @@ class DatabaseHelper {
 
   Future<int> deleteProducto(int id) async {
     final db = await database;
-    return await db.delete(
+    return db.delete(
       'productos',
       where: 'id = ?',
       whereArgs: [id],
@@ -140,7 +203,7 @@ class DatabaseHelper {
   Future<Producto?> getProductoByCodigo(String codigo) async {
     if (codigo.isEmpty) return null;
     final db = await database;
-    return await db.query(
+    return db.query(
       'productos',
       where: 'codigo = ?',
       whereArgs: [codigo],
@@ -165,29 +228,37 @@ class DatabaseHelper {
     return result.map((e) => Producto.fromMap(e)).toList();
   }
 
-  Future<void> addVenta(double total, List<CarritoItem> items) async {
+  /// Registra una venta y sus lineas en una transaccion.
+  ///
+  /// Si falla cualquier insercion no queda una venta a medias.
+  Future<int> addVenta(double total, List<CarritoItem> items) async {
     final db = await database;
     final fecha = DateTime.now().toIso8601String();
 
-    final ventaId = await db.insert('ventas', {
-      'total': total,
-      'fecha': fecha,
-      'estado': 'completada',
-    });
-
-    for (var item in items) {
-      await db.insert('venta_detalles', {
-        'venta_id': ventaId,
-        'producto_id': item.producto.id,
-        'nombre': item.producto.nombre,
-        'codigo': item.producto.codigo,
-        'precio_unitario': item.producto.precio,
-        'cantidad': item.cantidad,
-        'subtotal': item.subtotal,
-        'unidad_medida': item.producto.unidadMedida,
-        'venta_por_peso': item.producto.ventaPorPeso ? 1 : 0,
+    return db.transaction((txn) async {
+      final ventaId = await txn.insert('ventas', {
+        'total': total,
+        'fecha': fecha,
+        'estado': 'completada',
       });
-    }
+
+      for (final item in items) {
+        await txn.insert('venta_detalles', {
+          'venta_id': ventaId,
+          'producto_id': item.producto.id,
+          'nombre': item.producto.nombre,
+          'codigo': item.producto.codigo,
+          'precio_unitario': item.producto.precio,
+          'cantidad': item.cantidad,
+          'subtotal': item.subtotal,
+          'unidad_medida': item.producto.unidadMedida,
+          'venta_por_peso': item.producto.ventaPorPeso ? 1 : 0,
+          'iva': item.producto.iva,
+        });
+      }
+
+      return ventaId;
+    });
   }
 
   Future<List<Venta>> getVentas() async {
@@ -268,9 +339,32 @@ class DatabaseHelper {
         WHERE v.fecha >= ? AND v.estado = 'completada'
       ''', [iso]);
 
+      // El IVA va incluido en el precio de cada linea, asi que se extrae linea
+      // por linea (cada una puede tener una tasa distinta). SQLite no tiene una
+      // funcion de "quitar impuesto", asi que se calcula en Dart con la misma
+      // formula de `Precios.ivaIncluido`.
+      final resultLineas = await db.rawQuery('''
+        SELECT vd.subtotal, COALESCE(vd.iva, 0) as iva
+        FROM venta_detalles vd
+        JOIN ventas v ON vd.venta_id = v.id
+        WHERE v.fecha >= ? AND v.estado = 'completada'
+      ''', [iso]);
+
       final rawTotal = resultVentas.first['total'];
-      resumen['total_${entry['label']}'] = (rawTotal is num ? rawTotal.toDouble() : 0.0);
-      resumen['cantidad_${entry['label']}'] = resultCantidad.first['cantidad'] ?? 0;
+      final rawCantidad = resultCantidad.first['cantidad'];
+
+      resumen['total_${entry['label']}'] =
+          rawTotal is num ? rawTotal.toDouble() : 0.0;
+      resumen['cantidad_${entry['label']}'] =
+          rawCantidad is num ? rawCantidad.toDouble() : 0.0;
+      resumen['iva_${entry['label']}'] = Precios.ivaDeLineas(
+        resultLineas.map((r) => (
+              subtotal: r['subtotal'] is num
+                  ? (r['subtotal'] as num).toDouble()
+                  : 0.0,
+              tasa: r['iva'] is num ? (r['iva'] as num).toDouble() : 0.0,
+            )),
+      );
     }
 
     final masVendido = await db.rawQuery('''

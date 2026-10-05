@@ -1,51 +1,70 @@
-﻿import 'package:flutter/material.dart';
-import '../services/database_helper.dart';
-import '../models/producto_model.dart';
-import '../widgets/producto_text_field.dart';
-import '../widgets/precio_field.dart';
-import '../utils/formatters.dart';
+import 'package:flutter/material.dart';
 
+import '../models/producto_model.dart';
+import '../services/database_helper.dart';
+import '../theme/app_theme.dart';
+import '../utils/formatters.dart';
+import '../widgets/precio_panel.dart';
+import '../widgets/presentacion_selector.dart';
+import '../widgets/producto_text_field.dart';
+
+/// Formulario de edicion de un producto existente, incluye eliminar.
 class EditProductoScreen extends StatefulWidget {
   final Producto producto;
 
-  EditProductoScreen({required this.producto});
+  const EditProductoScreen({super.key, required this.producto});
 
   @override
-  _EditProductoScreenState createState() => _EditProductoScreenState();
+  State<EditProductoScreen> createState() => _EditProductoScreenState();
 }
 
 class _EditProductoScreenState extends State<EditProductoScreen> {
+  static const List<String> _unidades = [
+    'unidad', 'kg', 'g', 'lb', 'L', 'mL', 'paquete', 'caja', //
+  ];
+
   final _formKey = GlobalKey<FormState>();
-  final _nombreController = TextEditingController();
-  final _codigoController = TextEditingController();
-  final _categoriaController = TextEditingController();
-  final _precioController = TextEditingController();
-  final _pesoController = TextEditingController();
-  final _stockController = TextEditingController();
-  final _marcaController = TextEditingController();
+  late final TextEditingController _nombreController;
+  late final TextEditingController _codigoController;
+  late final TextEditingController _categoriaController;
+  late final TextEditingController _marcaController;
+  late final TextEditingController _medidaController;
+  late final TextEditingController _stockController;
 
   late String _unidadMedida;
   late bool _ventaPorPeso;
-  final _ivaController = TextEditingController();
+  bool _guardando = false;
 
-  final _unidades = ['kg', 'g', 'lb', 'L', 'mL', 'unidad', 'paquete', 'caja'];
+  // Costo, precio e IVA los administra `PrecioPanel`.
+  double _costo = 0;
+  double _precio = 0;
+  double _iva = 0;
 
+  /// Unidades que se venden por conteo, no por medida.
+  static const Set<String> _unidadesDeConteo = {'unidad', 'paquete', 'caja'};
 
   @override
   void initState() {
     super.initState();
-    _nombreController.text = widget.producto.nombre;
-    _codigoController.text = widget.producto.codigo ?? '';
-    _categoriaController.text = widget.producto.categoria;
-    _precioController.text = formatCurrency(widget.producto.precio);
-    _pesoController.text = widget.producto.peso.toString();
-    _stockController.text = widget.producto.stock == widget.producto.stock.roundToDouble()
-        ? widget.producto.stock.toInt().toString()
-        : widget.producto.stock.toString();
-    _marcaController.text = widget.producto.marca ?? '';
-    _unidadMedida = widget.producto.unidadMedida ?? _unidades.first;
-    _ventaPorPeso = widget.producto.ventaPorPeso;
-    _ivaController.text = widget.producto.iva.toStringAsFixed(0);
+    final p = widget.producto;
+
+    _nombreController = TextEditingController(text: p.nombre);
+    _codigoController = TextEditingController(text: p.codigo ?? '');
+    _categoriaController = TextEditingController(text: p.categoria);
+    _marcaController = TextEditingController(text: p.marca ?? '');
+    _medidaController = TextEditingController(
+      text: formatCantidad(p.peso, porPeso: true),
+    );
+    _stockController = TextEditingController(
+      text: formatCantidad(p.stock, porPeso: p.ventaPorPeso),
+    );
+
+    _costo = p.costo;
+    _precio = p.precio;
+    _iva = p.iva;
+
+    _unidadMedida = p.unidadMedida ?? _unidades.first;
+    _ventaPorPeso = p.ventaPorPeso;
   }
 
   @override
@@ -53,328 +72,412 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
     _nombreController.dispose();
     _codigoController.dispose();
     _categoriaController.dispose();
-    _precioController.dispose();
-    _pesoController.dispose();
-    _stockController.dispose();
     _marcaController.dispose();
-    _ivaController.dispose();
+    _medidaController.dispose();
+    _stockController.dispose();
     super.dispose();
   }
 
-  String _pesoLabel() {
-    switch (_unidadMedida) {
-      case 'kg':
-        return 'Peso (kg)';
-      case 'g':
-        return 'Peso (g)';
-      case 'lb':
-        return 'Peso (lb)';
-      case 'L':
-        return 'Volumen (L)';
-      case 'mL':
-        return 'Volumen (mL)';
-      default:
-        return 'Cantidad';
-    }
+  /// Propone una unidad coherente al cambiar de modo de venta, para no dejar
+  /// un queso medido en `paquete` o una bolsa pesada medida en `unidad`.
+  void _alCambiarPresentacion(bool porPeso) {
+    setState(() {
+      _ventaPorPeso = porPeso;
+      if (porPeso && _unidadesDeConteo.contains(_unidadMedida)) {
+        _unidadMedida = 'kg';
+      } else if (!porPeso &&
+          !_unidadesDeConteo.contains(_unidadMedida) &&
+          _unidadMedida != 'kg' &&
+          _unidadMedida != 'lb') {
+        _unidadMedida = 'unidad';
+      }
+    });
   }
 
-  IconData _pesoIcon() {
-    switch (_unidadMedida) {
-      case 'L':
-      case 'mL':
-        return Icons.water_drop_outlined;
-      case 'unidad':
-      case 'paquete':
-      case 'caja':
-        return Icons.inventory_2_outlined;
-      default:
-        return Icons.monitor_weight_outlined;
-    }
-  }
-  Future<void> _updateProducto() async {
-    if (_formKey.currentState!.validate()) {
-      final producto = Producto(
-        id: widget.producto.id,
-        nombre: _nombreController.text,
-        codigo: _codigoController.text,
-        categoria: _categoriaController.text,
-        precio: parseCurrency(_precioController.text),
-        peso: double.parse(_pesoController.text),
-        stock: double.parse(_stockController.text),
-        marca: _marcaController.text.isEmpty ? null : _marcaController.text,
-        unidadMedida: _unidadMedida,
-        iva: double.tryParse(_ivaController.text) ?? 0.0,
-        ventaPorPeso: _ventaPorPeso,
-      );
+  bool get _porVolumen => _unidadMedida == 'L' || _unidadMedida == 'mL';
 
+  IconData get _iconoMedida {
+    if (_porVolumen) return Icons.water_drop_rounded;
+    if (_ventaPorPeso) return Icons.scale_rounded;
+    return Icons.inventory_2_rounded;
+  }
+
+  Future<void> _actualizar() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _guardando = true);
+
+    final producto = Producto(
+      id: widget.producto.id,
+      nombre: _nombreController.text.trim(),
+      codigo: _codigoController.text.trim(),
+      categoria: _categoriaController.text.trim(),
+      precio: _precio,
+      costo: _costo,
+      peso: double.tryParse(_medidaController.text) ?? 1.0,
+      stock: double.tryParse(_stockController.text) ?? 0.0,
+      marca: _marcaController.text.trim().isEmpty ? null : _marcaController.text.trim(),
+      unidadMedida: _unidadMedida,
+      iva: _iva,
+      ventaPorPeso: _ventaPorPeso,
+    );
+
+    try {
       await DatabaseHelper.instance.updateProducto(producto.toMap());
+      if (!mounted) return;
       Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _guardando = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo guardar. Revisa que el codigo no este repetido.'),
+        ),
+      );
     }
   }
 
-  Future<void> _deleteProducto() async {
-    final confirm = await showDialog<bool>(
+  Future<void> _eliminar() async {
+    final confirmado = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Eliminar Producto"),
-        content: const Text("¿Estás seguro de que deseas eliminar este producto?"),
+        title: const Text('Eliminar producto'),
+        content: Text(
+          'Se eliminara "${widget.producto.nombre}" del inventario. Esta accion no se puede deshacer.',
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text("Cancelar", style: TextStyle(color: Colors.green)),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
           ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text("Eliminar", style: TextStyle(color: Colors.red)),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Eliminar'),
           ),
         ],
       ),
     );
 
-    if (confirm == true && widget.producto.id != null) {
+    if (confirmado == true && widget.producto.id != null) {
       await DatabaseHelper.instance.deleteProducto(widget.producto.id!);
+      if (!mounted) return;
       Navigator.pop(context);
     }
   }
 
-  String _stockLabel() {
-    if (_ventaPorPeso) return 'Stock ($_unidadMedida)';
-    return 'Stock (unidades)';
-  }
-
-  Widget _seccionHeader(String titulo) {
-    return Text(
-      titulo,
-      style: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: Theme.of(context).colorScheme.primary,
-        letterSpacing: 0.5,
-      ),
-    );
-  }
-
-  Widget _buildDropdown(String label, IconData icon, String value, List<String> items, ValueChanged<String?> onChanged) {
-    return DropdownButtonFormField<String>(
-      value: value,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: Colors.black54),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        labelStyle: const TextStyle(color: Colors.black54),
-      ),
-      items: items.map((v) {
-        return DropdownMenuItem(
-          value: v,
-          child: Text(v),
-        );
-      }).toList(),
-      onChanged: onChanged,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        elevation: 0,
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return AuroraBackground(
+      dark: isDark,
+      child: Scaffold(
         backgroundColor: Colors.transparent,
-        title: Text(
-          "Editar Producto",
-          style: TextStyle(
-              color: Colors.black87, fontWeight: FontWeight.w300, fontSize: 22),
-        ),
-        iconTheme: IconThemeData(color: Colors.black54),
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8),
+        appBar: AppBar(title: const Text('Editar producto')),
+        body: SafeArea(
           child: Form(
             key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.xs,
+                AppSpacing.md,
+                AppSpacing.xl,
+              ),
               children: [
-                _seccionHeader("Información del Producto"),
-                SizedBox(height: 12),
-                ProductoTextField(
-                  controller: _nombreController,
-                  label: "Nombre del Producto",
-                  icon: Icons.shopping_basket_outlined,
-                  validator: (value) =>
-                      value!.isEmpty ? "Ingrese un nombre" : null,
-                ),
-                SizedBox(height: 14),
-                ProductoTextField(
-                  controller: _codigoController,
-                  label: "Código de Barras (opcional)",
-                  icon: Icons.barcode_reader,
-                ),
-                SizedBox(height: 14),
-                ProductoTextField(
-                  controller: _categoriaController,
-                  label: "Categoría",
-                  icon: Icons.category_outlined,
-                  validator: (value) =>
-                      value!.isEmpty ? "Ingrese una categoría" : null,
-                ),
-                SizedBox(height: 24),
-                _seccionHeader("Detalles del Producto"),
-                SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ProductoTextField(
-                        controller: _marcaController,
-                        label: "Marca",
-                        icon: Icons.branding_watermark_outlined,
+                _PanelInfo(producto: widget.producto),
+                const SizedBox(height: AppSpacing.md),
+                _Seccion(
+                  icono: Icons.info_outline_rounded,
+                  titulo: 'Identificacion',
+                  color: AppColors.neonCyan,
+                  child: Column(
+                    children: [
+                      ProductoTextField(
+                        controller: _nombreController,
+                        label: 'Nombre del producto',
+                        icon: Icons.shopping_basket_outlined,
+                        textCapitalization: TextCapitalization.sentences,
+                        validator: (v) =>
+                            (v == null || v.trim().isEmpty) ? 'Ingresa un nombre' : null,
                       ),
-                    ),
-                    SizedBox(width: 14),
-                    Expanded(
-                      child: _buildDropdown(
-                        "Unidad", Icons.scale_outlined,
-                        _unidadMedida, _unidades, (v) {
-                          if (v != null) setState(() => _unidadMedida = v);
-                        },
+                      const SizedBox(height: AppSpacing.sm),
+                      ProductoTextField(
+                        controller: _codigoController,
+                        label: 'Codigo de barras',
+                        icon: Icons.barcode_reader,
+                        helperText: 'Opcional',
                       ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 8),
-                Container(
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
+                      const SizedBox(height: AppSpacing.sm),
+                      ProductoTextField(
+                        controller: _categoriaController,
+                        label: 'Categoria',
+                        icon: Icons.category_outlined,
+                        textCapitalization: TextCapitalization.sentences,
+                        validator: (v) =>
+                            (v == null || v.trim().isEmpty) ? 'Ingresa una categoria' : null,
                       ),
                     ],
                   ),
-                  child: SwitchListTile(
-                    title: const Text("Vender por peso",
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                    subtitle: Text(
-                      _ventaPorPeso
-                          ? "Se vende en $_unidadMedida (decimal)"
-                          : "Se vende por unidad (entero)",
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
-                    ),
-                    value: _ventaPorPeso,
-                    onChanged: (v) => setState(() => _ventaPorPeso = v),
-                    secondary: Icon(
-                      _ventaPorPeso ? Icons.scale : Icons.inventory_2_outlined,
-                      color: Colors.black54,
-                    ),
-                    activeColor: Theme.of(context).colorScheme.primary,
-                  ),
                 ),
-                SizedBox(height: 24),
-                _seccionHeader("Precio y Stock"),
-                SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: PrecioField(
-                        controller: _precioController,
-                        validator: (value) =>
-                            value!.isEmpty ? "Ingrese un precio" : null,
+                const SizedBox(height: AppSpacing.md),
+                _Seccion(
+                  icono: Icons.tune_rounded,
+                  titulo: 'Presentacion',
+                  color: AppColors.neonMagenta,
+                  child: Column(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: ProductoTextField(
+                              controller: _marcaController,
+                              label: 'Marca',
+                              icon: Icons.branding_watermark_outlined,
+                              textCapitalization: TextCapitalization.words,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _unidadMedida,
+                              isExpanded: true,
+                              borderRadius: BorderRadius.circular(AppShape.md),
+                              icon: const Icon(Icons.unfold_more_rounded, size: 20),
+                              decoration: const InputDecoration(
+                                labelText: 'Unidad',
+                                prefixIcon: Icon(Icons.straighten_rounded, size: 20),
+                              ),
+                              style: theme.textTheme.titleMedium,
+                              items: _unidades
+                                  .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+                                  .toList(),
+                              onChanged: (v) {
+                                if (v != null) setState(() => _unidadMedida = v);
+                              },
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    SizedBox(width: 14),
-                    Expanded(
-                      child: ProductoTextField(
-                        controller: _pesoController,
-                        label: _pesoLabel(),
-                        icon: _pesoIcon(),
-                        keyboardType:
-                            TextInputType.numberWithOptions(decimal: true),
-                        validator: (value) =>
-                            value!.isEmpty ? "Ingrese un peso" : null,
+                      const SizedBox(height: AppSpacing.md),
+                      PresentacionSelector(
+                        ventaPorPeso: _ventaPorPeso,
+                        unidadMedida: _unidadMedida,
+                        onChanged: _alCambiarPresentacion,
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ProductoTextField(
-                        controller: _stockController,
-                        label: _stockLabel(),
-                        icon: Icons.inventory,
-                        keyboardType: TextInputType.numberWithOptions(decimal: _ventaPorPeso),
-                        validator: (value) =>
-                            value!.isEmpty ? "Ingrese un stock" : null,
+                const SizedBox(height: AppSpacing.md),
+                _Seccion(
+                  icono: Icons.sell_outlined,
+                  titulo: 'Precio y existencias',
+                  color: AppColors.neonLime,
+                  child: Column(
+                    children: [
+                      PrecioPanel(
+                        costoInicial: _costo,
+                        precioInicial: _precio,
+                        ivaInicial: _iva,
+                        onCambio: (v) {
+                          _costo = v.costo;
+                          _precio = v.precio;
+                          _iva = v.iva;
+                        },
                       ),
-                    ),
-                    SizedBox(width: 14),
-                    Expanded(
-                      child: ProductoTextField(
-                        controller: _ivaController,
-                        label: "IVA",
-                        icon: Icons.receipt_long_outlined,
-                        keyboardType: TextInputType.number,
-                        suffixText: "%",
+                      const SizedBox(height: AppSpacing.md),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: ProductoTextField(
+                              controller: _medidaController,
+                              label: labelCantidad(
+                                porPeso: _ventaPorPeso,
+                                unidadMedida: _unidadMedida,
+                              ),
+                              icon: _iconoMedida,
+                              keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: ProductoTextField(
+                              controller: _stockController,
+                              label: labelStock(
+                                porPeso: _ventaPorPeso,
+                                unidadMedida: _unidadMedida,
+                              ),
+                              icon: Icons.inventory_rounded,
+                              keyboardType: _ventaPorPeso
+                                  ? const TextInputType.numberWithOptions(decimal: true)
+                                  : TextInputType.number,
+                              validator: (v) =>
+                                  (v == null || v.trim().isEmpty) ? 'Ingresa el stock' : null,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 32),
-                ElevatedButton(
-                  onPressed: _updateProducto,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 2,
-                  ),
-                  child: Text(
-                    "Guardar Cambios",
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500),
+                    ],
                   ),
                 ),
-                SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: _deleteProducto,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade500,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    "Eliminar Producto",
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500),
-                  ),
+                const SizedBox(height: AppSpacing.lg),
+                NeonButton(
+                  label: 'Guardar cambios',
+                  icon: Icons.check_rounded,
+                  loading: _guardando,
+                  onPressed: _guardando ? null : _actualizar,
                 ),
+                const SizedBox(height: AppSpacing.sm),
+                _BotonEliminar(onTap: _eliminar),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PanelInfo extends StatelessWidget {
+  final Producto producto;
+
+  const _PanelInfo({required this.producto});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return GlassSurface(
+      blur: false,
+      glow: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Vista rapida', style: theme.textTheme.labelSmall),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      producto.nombre,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Valor en inventario ${formatCurrency(producto.precio * producto.stock)}',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              NeonText(
+                text: formatCurrency(producto.precio),
+                style: theme.textTheme.headlineSmall,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Seccion extends StatelessWidget {
+  final IconData icono;
+  final String titulo;
+  final Color color;
+  final Widget child;
+
+  const _Seccion({
+    required this.icono,
+    required this.titulo,
+    required this.color,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              height: 22,
+              width: 22,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(AppShape.xs),
+              ),
+              child: Icon(icono, size: 13, color: color),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              titulo.toUpperCase(),
+              style: theme.textTheme.labelSmall?.copyWith(color: color),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        GlassSurface(blur: false, child: child),
+      ],
+    );
+  }
+}
+
+class _BotonEliminar extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _BotonEliminar({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Eliminar producto',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 52,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.danger.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(AppShape.pill),
+            border: Border.all(color: AppColors.danger.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.delete_outline_rounded,
+                  color: AppColors.danger, size: 20),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                'Eliminar producto',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.danger.withValues(alpha: 0.95),
+                ),
+              ),
+            ],
           ),
         ),
       ),

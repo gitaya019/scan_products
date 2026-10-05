@@ -6,25 +6,26 @@ plugins {
 }
 
 android {
-    namespace = "com.example.scan_products"
-    compileSdk = flutter.compileSdkVersion
+    namespace = "com.jacsoft.scan_products"
+    // Fijado en 36: las dependencias de androidx que arrastra barcode_scan2
+    // exigen compileSdk >= 34. `flutter.compileSdkVersion` puede ir por detras.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8
+        jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.scan_products"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        applicationId = "com.jacsoft.scan_products"
+        // Sigue el minimo de Flutter (API 24 en Flutter 3.47). barcode_scan2
+        // pide 21, asi que el valor nunca es restrictivo para el.
+        minSdkVersion = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -32,9 +33,12 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // TODO: Configure a real signing config before publishing.
+            // Currently signs with debug keys so `flutter run --release` works.
             signingConfig = signingConfigs.debug
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
     }
 }

@@ -25,10 +25,11 @@ class Venta {
   }
 
   factory Venta.fromMap(Map<String, dynamic> map) {
+    final total = map['total'];
     return Venta(
       id: map['id'],
-      total: map['total'],
-      fecha: map['fecha'],
+      total: total is num ? total.toDouble() : 0.0,
+      fecha: map['fecha'] ?? '',
       estado: map['estado'] ?? 'completada',
     );
   }

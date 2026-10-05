@@ -1,7 +1,13 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import '../utils/formatters.dart';
 import 'producto_text_field.dart';
 
+/// Campo de precio en COP.
+///
+/// While typing shows the raw digits; on focus loss reformats with thousand
+/// separators so the user always reads a familiar currency format.
 class PrecioField extends StatefulWidget {
   final TextEditingController controller;
   final String? Function(String?)? validator;
@@ -17,19 +23,13 @@ class PrecioField extends StatefulWidget {
 }
 
 class _PrecioFieldState extends State<PrecioField> {
-  late final FocusNode _focusNode;
-
-  @override
-  void initState() {
-    super.initState();
-    _focusNode = FocusNode();
-    _focusNode.addListener(_onFocusChange);
-  }
+  late final FocusNode _focusNode = FocusNode()..addListener(_onFocusChange);
 
   @override
   void dispose() {
-    _focusNode.removeListener(_onFocusChange);
-    _focusNode.dispose();
+    _focusNode
+      ..removeListener(_onFocusChange)
+      ..dispose();
     super.dispose();
   }
 
@@ -44,11 +44,15 @@ class _PrecioFieldState extends State<PrecioField> {
   Widget build(BuildContext context) {
     return ProductoTextField(
       controller: widget.controller,
-      label: "Precio",
-      icon: Icons.attach_money_outlined,
+      label: 'Precio',
+      icon: Icons.attach_money_rounded,
       keyboardType: TextInputType.number,
       validator: widget.validator,
       focusNode: _focusNode,
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
+      ],
+      suffixText: 'COP',
     );
   }
 }
