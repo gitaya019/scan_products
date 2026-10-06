@@ -577,6 +577,9 @@ class _DialogoStockProductoState extends State<_DialogoStockProducto> {
     final producto = widget.producto;
 
     return AlertDialog(
+      // Con el teclado abierto (el campo tiene `autofocus`) la altura util baja
+      // a la mitad y este contenido no cabe: ver "Keyboard rule" en AGENTS.md.
+      scrollable: true,
       title: Row(
         children: [
           Container(

@@ -160,27 +160,26 @@ class _CategoriasScreenState extends State<CategoriasScreen> {
   }
 
   /// Dialogo de alta/edicion. Devuelve `null` si se cancela.
+  ///
+  /// Solo se pasa el texto inicial: el `TextEditingController` lo crea y
+  /// destruye el propio dialogo. Crearlo aqui y liberarlo en la linea
+  /// siguiente a `showDialog` es exactamente el bug que arrastra
+  /// "_dependents.isEmpty" (ver el gotcha en AGENTS.md): `showDialog` devuelve
+  /// en el `Navigator.pop`, pero la ruta sigue montada durante su transicion de
+  /// salida y el `TextField` con autofocus se reconstruye al moverse el teclado.
   Future<String?> _pedirNombre({
     required String titulo,
     required String confirmar,
     required String inicial,
   }) async {
-    final controller = TextEditingController(text: inicial);
-    // El dialogo es el dueno del controller: se crea aqui y se destruye al
-    // cerrarse, nunca despues de que `showDialog` devuelva (ver
-    // `_DialogoCantidadVenta` en venta_screen.dart).
-    final resultado = await showDialog<String>(
+    return showDialog<String>(
       context: context,
       builder: (ctx) => _DialogoNombre(
         titulo: titulo,
         confirmar: confirmar,
-        controller: controller,
+        inicial: inicial,
       ),
     );
-    controller.dispose();
-
-    if (resultado != null) return resultado;
-    return null;
   }
 
   @override
@@ -366,12 +365,14 @@ class _TarjetaCategoria extends StatelessWidget {
 class _DialogoNombre extends StatefulWidget {
   final String titulo;
   final String confirmar;
-  final TextEditingController controller;
+
+  /// Texto inicial. Solo el texto: el controller es del dialogo.
+  final String inicial;
 
   const _DialogoNombre({
     required this.titulo,
     required this.confirmar,
-    required this.controller,
+    required this.inicial,
   });
 
   @override
@@ -381,8 +382,25 @@ class _DialogoNombre extends StatefulWidget {
 class _DialogoNombreState extends State<_DialogoNombre> {
   String _error = '';
 
+  /// Vive exactamente lo que vive el dialogo, como en
+  /// `_DialogoCantidadVenta`. Liberarlo fuera del `State` deja al `TextField`
+  /// leyendo un controller muerto durante la transicion de salida.
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.inicial);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   void _aceptar() {
-    final texto = widget.controller.text.trim();
+    final texto = _controller.text.trim();
     if (texto.isEmpty) {
       setState(() => _error = 'La categoria necesita un nombre.');
       return;
@@ -398,7 +416,7 @@ class _DialogoNombreState extends State<_DialogoNombre> {
       scrollable: true,
       title: Text(widget.titulo),
       content: TextField(
-        controller: widget.controller,
+        controller: _controller,
         autofocus: true,
         textCapitalization: TextCapitalization.sentences,
         textInputAction: TextInputAction.done,

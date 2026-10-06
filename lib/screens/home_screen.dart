@@ -896,6 +896,9 @@ class _DialogoCantidadState extends State<_DialogoCantidad> {
     final color = sumando ? AppColors.success : AppColors.warning;
 
     return AlertDialog(
+      // Tiene `autofocus` aca abajo, asi que el teclado se abre siempre y la
+      // altura util se reduce a la mitad. Sin esto el contenido no cabe.
+      scrollable: true,
       titlePadding: const EdgeInsets.fromLTRB(
         AppSpacing.lg,
         AppSpacing.lg,
