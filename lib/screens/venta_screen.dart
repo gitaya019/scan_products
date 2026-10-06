@@ -321,18 +321,34 @@ class _VentaScreenState extends State<VentaScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              if (!tecladoAbierto) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.md,
-                    0,
-                    AppSpacing.md,
-                    AppSpacing.sm,
-                  ),
-                  child: _ZonaEscaneo(onEscanear: _escanear),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-              ],
+              // La zona de escaneo se **colapsa**, no se quita del `Column`.
+              //
+              // Un `Column` empareja sus hijos por posicion, no por tipo: quitar
+              // el primero desplaza todos los siguientes y cada uno se recrea en
+              // un hueco que antes era de otro tipo. El `TextField` de busqueda
+              // perderia su `State` — y con el, el `FocusNode` que tiene dentro
+              // —, el foco se iria al arbol y el teclado se cerraria a mitad de
+              // la busqueda, justo lo que hace que el usuario no pueda buscar.
+              // Manteniendo el hueco, el foco sobrevive por construccion.
+              //
+              // El colapso es instantaneo a proposito. El teclado encoge el
+              // viewport de golpe, asi que una transicion que tarde en devolver
+              // el alto deja al `Column` corto mientras corre: con 320 ms de
+              // `AnimatedSize` el `RenderFlex` se desborda por abajo (21 px, los
+              // mide `test/dialogo_cantidad_test.dart` al confirmar con el
+              // teclado subiendo). Un salto seco se nota; una franja negra de
+              // desborde, no.
+              tecladoAbierto
+                  ? const SizedBox(width: double.infinity)
+                  : Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.md,
+                        0,
+                        AppSpacing.md,
+                        AppSpacing.sm,
+                      ),
+                      child: _ZonaEscaneo(onEscanear: _escanear),
+                    ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                 child: _CampoBusqueda(

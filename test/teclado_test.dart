@@ -74,6 +74,16 @@ List<String> drenar(WidgetTester tester) {
   return errores;
 }
 
+/// Si el campo de texto de la pantalla sigue con el foco.
+///
+/// Es la forma de preguntar "¿sigue abierto el teclado?" sin depender del IME:
+/// un `EditableText` con foco es lo que mantiene abierta la vista de insercion
+/// en Android.
+bool _enfocado(WidgetTester tester) {
+  final editables = tester.widgetList<EditableText>(find.byType(EditableText));
+  return editables.isNotEmpty && editables.first.focusNode.hasFocus;
+}
+
 void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
@@ -191,6 +201,71 @@ void main() {
       () => DatabaseHelper.instance.getVentas(),
     );
     expect(ventas, isEmpty, reason: 'no se debe registrar una venta anulada');
+  });
+
+  testWidgets('el teclado no se cierra mientras se busca', (tester) async {
+    await tester.runAsync(sembrar);
+    ajustarPantalla(tester);
+
+    await tester.pumpWidget(const MaterialApp(home: VentaScreen()));
+    await recargar(tester);
+
+    // Enfocar el campo es lo que abre el teclado en un celular real.
+    await tester.tap(find.byType(TextField).first);
+    await tester.pump();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 900);
+    await tester.pump();
+    await asentar(tester);
+
+    await tester.enterText(find.byType(TextField).first, 'Leche');
+    await recargar(tester);
+
+    expect(_enfocado(tester), isTrue,
+        reason: 'el teclado se escondio mientras se escribia');
+
+    await esperarHasta(tester, find.text('Leche Entera'));
+    expect(find.text('Leche Entera'), findsOneWidget);
+    expect(drenar(tester), isEmpty);
+  });
+
+  testWidgets('el campo de busqueda no se recrea al abrir el teclado',
+      (tester) async {
+    await tester.runAsync(sembrar);
+    ajustarPantalla(tester);
+
+    await tester.pumpWidget(const MaterialApp(home: VentaScreen()));
+    await recargar(tester);
+
+    final nodoAntes =
+        tester.widget<EditableText>(find.byType(EditableText)).focusNode;
+
+    // Abrir el teclado oculta la zona de escaneo. Ese cambio **no** puede tocar
+    // el `TextField`: un `Column` empareja sus hijos por posicion, y quitar el
+    // primero reconstruye todos los siguientes en otro hueco. El `FocusNode`
+    // vive en el `State` del `TextField`, asi que un `TextField` recreado
+    // pierde el foco — y con el se cierra el teclado a mitad de la busqueda,
+    // que es justo lo que hacia que el usuario no pudiera buscar.
+    tester.view.viewInsets = const FakeViewPadding(bottom: 900);
+    await asentar(tester);
+
+    final nodoDespues =
+        tester.widget<EditableText>(find.byType(EditableText)).focusNode;
+    expect(identical(nodoAntes, nodoDespues), isTrue,
+        reason: 'el campo de busqueda se reconstruyo al abrir el teclado');
+
+    // Cerrarlo tampoco: la zona de escaneo vuelve a su lugar.
+    tester.view.viewInsets = FakeViewPadding.zero;
+    await asentar(tester);
+
+    expect(
+      identical(
+        nodoAntes,
+        tester.widget<EditableText>(find.byType(EditableText)).focusNode,
+      ),
+      isTrue,
+      reason: 'el campo de busqueda se reconstruyo al cerrar el teclado',
+    );
+    expect(drenar(tester), isEmpty);
   });
 
   testWidgets('cobro insuficiente avisa y no cobra', (tester) async {
