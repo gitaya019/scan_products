@@ -471,42 +471,53 @@ void main() {
           matching: find.text(texto),
         );
 
-    testWidgets('sin redondeo dice que se cobra el precio tal cual',
-        (tester) async {
+    testWidgets('sin redondeo muestra los dos valores', (tester) async {
       await montarConCobro(tester, RedondeoCobro.sinRedondeo, panel());
 
       expect(find.text('AL COBRAR'), findsOneWidget);
       expect(enFilaCobro('3.240'), findsOneWidget);
-      expect(find.text('Se cobra el precio tal cual.'), findsOneWidget);
+      // Sin redondeo los dos numeros coinciden, y eso tambien hay que verlo.
+      expect(
+        find.text('Sin redondeo 3.240  ·  Redondeado 3.240'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('multiplos de 50 muestra el importe ajustado', (tester) async {
+    testWidgets('multiplos de 50 muestra los dos valores', (tester) async {
       await montarConCobro(tester, RedondeoCobro.multiploDe50, panel());
 
-      // 3.240 -> 3.250, y el panel lo dice en voz alta para que no parezca un
-      // error de tecleo.
+      // 3.240 -> 3.250: el redondeado va al lado del sin redondear para que se
+      // vea la diferencia sin tener que restar.
       expect(enFilaCobro('3.250'), findsOneWidget);
       expect(find.text('Multiplos de 50'), findsOneWidget);
-      expect(find.text('Esta opcion suma 10 al cobro.'), findsOneWidget);
+      expect(
+        find.text('Sin redondeo 3.240  ·  Redondeado 3.250'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('techo a la centena muestra el importe ajustado',
-        (tester) async {
+    testWidgets('techo a la centena muestra los dos valores', (tester) async {
       await montarConCobro(tester, RedondeoCobro.techoCien, panel());
 
       expect(enFilaCobro('3.300'), findsOneWidget);
       expect(find.text('Subir a la centena'), findsOneWidget);
-      expect(find.text('Esta opcion suma 60 al cobro.'), findsOneWidget);
+      expect(
+        find.text('Sin redondeo 3.240  ·  Redondeado 3.300'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('avisa cuando el redondeo baja el cobro', (tester) async {
-      // Con multiplo de 50, 3.260 baja a 3.250. Un descuento no es un error y
-      // tiene que estar escrito, porque el precio de la etiqueta dice otra cosa.
+    testWidgets('el redondeo tambien puede bajar el cobro', (tester) async {
+      // Con multiplo de 50, 3.260 baja a 3.250. El par de numeros lo dice sin
+      // palabras: el redondeado es el menor.
       await montarConCobro(
           tester, RedondeoCobro.multiploDe50, panel(precio: 3260));
 
       expect(enFilaCobro('3.250'), findsOneWidget);
-      expect(find.text('Esta opcion descuenta 10 del cobro.'), findsOneWidget);
+      expect(
+        find.text('Sin redondeo 3.260  ·  Redondeado 3.250'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('el precio guardado no cambia por el redondeo', (tester) async {

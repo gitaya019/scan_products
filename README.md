@@ -254,9 +254,10 @@ margen, así que redondear el precio almacenaría un producto cuyo margen real n
 es el que está en pantalla (30% escrito, 33% guardado). El redondeo es una
 decisión del momento de cobro.
 
-Lo que sí aparece en el alta y la edición es una fila **"Al cobrar"**: cuánto se
-cobra de verdad con la opción elegida y, cuando el importe no coincide con el
-precio escrito, por cuánto difiere ("Esta opción suma 60 al cobro"). Va aparte
+Lo que sí aparece en el alta y la edición es una fila **"Al cobrar"**, con el
+importe real que sale de la opción elegida y un texto gris con **los dos
+valores**: `Sin redondeo 3.240 · Redondeado 3.300`. Van juntos a propósito, para
+que se vea de un vistazo qué escribió el tendero y qué entra por caja. Va aparte
 porque son dos números distintos —el precio de la etiqueta y el importe cobrado—
 y juntarlos invita a compararlos. Tocar la fila lleva a Opciones de cobro, así que
 se cambia la regla sin salir del formulario.

@@ -384,9 +384,16 @@ class _VistaPrevia extends StatelessWidget {
 /// de arriba. Es la respuesta a "¿cuanto me van a dar por este producto?", que
 /// con redondeo al alza no es el numero que esta escrito en la etiqueta.
 ///
-/// Va **debajo** del precio y no en la misma fila porque los dos numeros no
-/// significan lo mismo: uno es el precio del catalogo y este el importe cobrado.
-/// Juntarlos invita a compararlos.
+/// El texto gris pone **los dos valores juntos**, "Sin redondeo 3.240 ·
+/// Redondeado 3.300", y no solo el cobrado. El tendero no quiere el importe en
+/// abstracto: quiere ver de un vistazo que lo que escribio y lo que entra por
+/// caja son distintos, y en cuanto. Con un numero grande y el otro de nota al
+/// pie hay que comparar mentalmente; con los dos en la misma linea, la
+/// diferencia se lee sola.
+///
+/// Va **debajo** del precio y no en la misma fila porque los dos numeros del
+/// formulario no significan lo mismo: uno es el precio del catalogo y este el
+/// importe cobrado. Juntarlos invita a compararlos.
 class _FilaCobro extends StatelessWidget {
   final double precio;
   final RedondeoCobro redondeo;
@@ -402,15 +409,6 @@ class _FilaCobro extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cobrado = Precios.redondearCobro(precio, redondeo);
-    final diferencia = cobrado - precio;
-
-    final nota = switch (redondeo) {
-      RedondeoCobro.sinRedondeo => 'Se cobra el precio tal cual.',
-      _ when diferencia == 0 => 'Esta opcion no cambia este precio.',
-      _ when diferencia > 0 =>
-        'Esta opcion suma ${formatCurrency(diferencia)} al cobro.',
-      _ => 'Esta opcion descuenta ${formatCurrency(-diferencia)} del cobro.',
-    };
 
     return Material(
       color: Colors.transparent,
@@ -442,7 +440,8 @@ class _FilaCobro extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      nota,
+                      'Sin redondeo ${formatCurrency(precio)}  ·  '
+                      'Redondeado ${formatCurrency(cobrado)}',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color:
                             theme.colorScheme.onSurface.withValues(alpha: 0.55),
