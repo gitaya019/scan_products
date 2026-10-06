@@ -574,9 +574,14 @@ class _TarjetaResultado extends StatelessWidget {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    NeonText(
-                      text: formatCurrency(producto.precio),
-                      style: theme.textTheme.titleMedium,
+                    ValueListenableBuilder<RedondeoCobro>(
+                      valueListenable: CobroScope.of(context),
+                      builder: (_, modo, __) => NeonText(
+                        text: formatCurrency(
+                          Precios.redondearCobro(producto.precio, modo),
+                        ),
+                        style: theme.textTheme.titleMedium,
+                      ),
                     ),
                     const SizedBox(width: AppSpacing.xs),
                     Flexible(
@@ -651,7 +656,7 @@ class _TarjetaCarrito extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${formatCurrency(producto.precio)} c/u',
+                      '${formatCurrency(Precios.redondearCobro(producto.precio, item.redondeo))} c/u',
                       style:
                           theme.textTheme.bodyMedium?.copyWith(fontSize: 12.5),
                     ),
@@ -967,10 +972,14 @@ class _DialogoCantidadVentaState extends State<_DialogoCantidadVenta> {
             spacing: AppSpacing.xs,
             runSpacing: AppSpacing.xs,
             children: [
-              GlassChip(
-                icon: Icons.sell_rounded,
-                label: '${formatCurrency(producto.precio)} c/u',
-                color: accent,
+              ValueListenableBuilder<RedondeoCobro>(
+                valueListenable: CobroScope.of(context),
+                builder: (_, modo, __) => GlassChip(
+                  icon: Icons.sell_rounded,
+                  label:
+                      '${formatCurrency(Precios.redondearCobro(producto.precio, modo))} c/u',
+                  color: accent,
+                ),
               ),
               if (producto.marca != null)
                 GlassChip(

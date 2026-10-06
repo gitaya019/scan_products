@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/producto_model.dart';
+import '../services/cobro_controller.dart';
 import '../services/database_helper.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_controller.dart';
 import '../utils/formatters.dart';
+import '../utils/precios.dart';
 import '../widgets/sidebar.dart';
 import 'add_producto_screen.dart';
 import 'edit_producto_screen.dart';
@@ -621,9 +623,14 @@ class _TarjetaProducto extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    NeonText(
-                      text: formatCurrency(producto.precio),
-                      style: theme.textTheme.titleLarge,
+                    ValueListenableBuilder<RedondeoCobro>(
+                      valueListenable: CobroScope.of(context),
+                      builder: (_, modo, __) => NeonText(
+                        text: formatCurrency(
+                          Precios.redondearCobro(producto.precio, modo),
+                        ),
+                        style: theme.textTheme.titleLarge,
+                      ),
                     ),
                     Text('precio',
                         style:
