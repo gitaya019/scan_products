@@ -58,7 +58,25 @@ viewport needs all three of these, or it will overflow with the keyboard up:
    *loose* constraints, so the `Column` takes whatever height is offered (even
    38 px) and its ~200 px of children overflow.
 3. Fixed-height chrome that stops being useful when the keyboard is up (the POS
-   scan zone) is hidden while `MediaQuery.viewInsetsOf(context).bottom > 0`.
+   scan zone) is **collapsed, not removed**, while
+   `MediaQuery.viewInsetsOf(context).bottom > 0`. See the rule below.
+
+**Rule: to hide a `Column` child, collapse its slot.** A `Column` matches its
+children by *position*, not by type. Removing one child shifts every later child
+into the previous child's slot, where the types no longer match, so each one is
+destroyed and rebuilt — and a rebuilt `TextField` is a lost `FocusNode`, because
+the node lives in the `TextField`'s `State`. The symptom on a real device is
+that the keyboard hides itself mid-typing: focus goes back to the tree when the
+IME closes, and the user cannot keep searching. Render a zero-height child in
+the same slot instead of inserting/removing one. `test/teclado_test.dart` guards
+the invariant by comparing the `FocusNode` instance before and after the
+keyboard opens.
+
+**Never animate that collapse.** The IME shrinks the viewport in one step, so an
+in-flight animation leaves the `Column` short while it runs: `AnimatedSize` at
+320 ms overflowed the `RenderFlex` by 21 px, caught by
+`test/dialogo_cantidad_test.dart` when the keyboard came up on confirm. A jump
+is noticed; a black overflow stripe on a sale is not.
 
 **Rule:** never hardcode colors, radii, or spacing in a screen. Use the tokens
 above so light/dark stay coherent.
@@ -87,7 +105,7 @@ above so light/dark stay coherent.
 - **`lib/widgets/sidebar.dart`** — drawer + theme switch + navigation, grouped in "Catalogo" (Categorias, Marcas) and "Cobro" (Opciones de cobro). `_MenuItem.detalle` carries the current value of a setting and must be wrapped in a `ValueListenableBuilder`, since `CobroScope` only notifies when the controller itself is swapped
 - **`lib/widgets/producto_text_field.dart`** — base text field
 - **`lib/widgets/precio_field.dart`** — COP price field, reformats on focus loss
-- **`lib/widgets/precio_panel.dart`** — bidirectional costo ↔ margen ↔ precio with live preview
+- **`lib/widgets/precio_panel.dart`** — bidirectional costo ↔ margen ↔ precio with live preview, including a "Al cobrar" row that simulates the charge with the rounding mode currently selected in the sidebar (tappable via the `onEditarCobro` callback, which the screens wire to `OpcionesCobroScreen` — a widget in `lib/widgets/` never imports a screen itself)
 - **`lib/widgets/presentacion_selector.dart`** — `PresentacionSelector` (units vs weight) + `UnidadVentaSelector` (balance unit)
 - **`lib/widgets/categoria_selector.dart`** — free-text field + preset sections + the shop's own catalog (`propias`)
 - **`lib/widgets/marca_selector.dart`** — brand autocomplete + inline creation
@@ -100,7 +118,7 @@ above so light/dark stay coherent.
 - **Two units per product, never one.** `unidad_medida` is the unit the price is quoted in; `unidad_venta` is the unit it's weighed and counted in. `null` in `unidad_venta` means "same as the price", which is what pre-v8 rows carry. `Producto.unidad` resolves the null; `Producto.necesitaConversion` is true only when the units differ **and** `Unidades.factor()` returns non-null (so g↔L never silently multiplies).
 - **Cart total:** `CarritoItem.subtotal` = `precioUnitarioVenta × cantidad` passed through `Precios.redondearCobro` with the line's own `redondeo`. 120 g at 5.000/lb = 1.200, not 600.000.
 - **Rounding applies at checkout, per line.** `RedondeoCobro` has three modes: `sinRedondeo` (pesos enteros), `multiploDe50` (nearest: 927→950), `techoCien` (always up: 924→1.000, 9.823→9.900). It lives on `CarritoItem.redondeo` (mutable) rather than only on the total, so the sum of the printed lines **is** what was charged. The POS re-applies the mode to existing lines when the setting changes mid-sale; mixing two rules in one total is not a thing the user can explain to a customer.
-- **The catalog price is NOT rounded on save.** `PrecioPanel` binds precio ↔ margen, so rounding the price at save time would store a product whose real margin isn't the one on screen (30% written, 33% saved). Rounding is a charge-time decision.
+- **The catalog price is NOT rounded on save.** `PrecioPanel` binds precio ↔ margen, so rounding the price at save time would store a product whose real margin isn't the one on screen (30% written, 33% saved). Rounding is a charge-time decision. The add/edit forms show what *will* be charged in a separate "Al cobrar" row — a simulation, in its own row below the price so the two numbers are not read as the same thing.
 - **Checkout asks before touching stock.** `_finalizar()` opens `_DialogoCobro` first; only after the payment is confirmed does it decrement inventory. Cancelling then leaves nothing to undo.
 - **Payment:** `MetodoPago.efectivo` requires the received bill (`recibido`), validates it covers the total, and shows the change live; `MetodoPago.nequi` stores `recibido = null` because "paid exact" and "not applicable" are different facts in a cash close. `Venta.vuelto` is derived, never stored. A bill that falls short is reported as `Faltan X`, never as a zero change.
 - **Step size:** `0.1` for kg/lb/L, `1` for g/mL and counting units. A gram-scale increment of 0,1 g is scale noise and would need 1.200 taps for one onion.
@@ -173,7 +191,7 @@ The remaining warnings are expected and not ours to fix:
 |---|---|
 | `flutter pub get` | Install dependencies |
 | `flutter analyze` | Must stay at **0 issues**. `analysis_options.yaml` adds 10 extra lints beyond `flutter_lints` |
-| `flutter test` | 240 tests |
+| `flutter test` | 250 tests |
 | `flutter run` | Run on device |
 | `flutter build apk --release` | Android release build |
 | `flutter build ios` | iOS release build |
@@ -196,8 +214,8 @@ The remaining warnings are expected and not ours to fix:
 | `test/categorias_test.dart` | Preset list integrity, search, `normalizar` |
 | `test/categorias_crud_test.dart` | Category catalog: dedup by case, rename cascade (incl. mismatched spellings and rename-to-itself), delete blocked while in use, read-only `normalizarCategoria`, back-fill sync |
 | `test/marcas_crud_test.dart` | The same contract for the brand catalog: `getMarcasConConteo` keeps 0-count rows, cascade by `COLLATE NOCASE`, `EstadoMarcaException` on collision, delete blocked while in use |
-| `test/teclado_test.dart` | Keyboard-up regression suite: full sale, cancel the charge dialog (asserts no sale recorded), insufficient bill, rename/create category and brand, cancel a dialog. `drenar()` collects every `tester.takeException()`, `esperarHasta()` retries until a `Finder` matches |
-| `test/widgets_test.dart` | `CategoriaSelector`, `MarcaSelector`, `UnidadVentaSelector`, `PresentacionSelector`, `VistaPreviaCobro` |
+| `test/teclado_test.dart` | Keyboard-up regression suite: full sale, cancel the charge dialog (asserts no sale recorded), insufficient bill, searching with the keyboard open, rename/create category and brand, cancel a dialog. `drenar()` collects every `tester.takeException()`, `esperarHasta()` retries until a `Finder` matches. The search tests compare the search field's `FocusNode` identity across the keyboard opening — see the "collapse its slot" rule above |
+| `test/widgets_test.dart` | `CategoriaSelector`, `MarcaSelector`, `UnidadVentaSelector`, `PresentacionSelector`, `VistaPreviaCobro`, and `PrecioPanel`'s "Al cobrar" row for each `RedondeoCobro` mode |
 
 **Critical:** `sqflite` does not work headless. Use `sqflite_common_ffi` via
 `inicializarBaseDeDatosDePrueba()` from `test/helpers/test_database.dart`, and

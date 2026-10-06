@@ -23,6 +23,7 @@ sin conexión: los datos viven en el dispositivo.
 - 💰 Costo de compra + % de ganancia → precio de venta, con vista previa en vivo
 - 🧾 IVA incluido en el precio, desglosado como base gravable + impuesto
 - ⚖️ **Precio por libra y venta en gramos**: el total se convierte solo
+- 🧮 Fila "Al cobrar": cuánto se cobra con el redondeo elegido, sin tocar el precio guardado
 
 **Punto de venta**
 - 🛒 Carrito con cantidades por peso/volumen o por unidad
@@ -252,6 +253,13 @@ El precio del catálogo **no** se redondea al guardar. El formulario liga precio
 margen, así que redondear el precio almacenaría un producto cuyo margen real no
 es el que está en pantalla (30% escrito, 33% guardado). El redondeo es una
 decisión del momento de cobro.
+
+Lo que sí aparece en el alta y la edición es una fila **"Al cobrar"**: cuánto se
+cobra de verdad con la opción elegida y, cuando el importe no coincide con el
+precio escrito, por cuánto difiere ("Esta opción suma 60 al cobro"). Va aparte
+porque son dos números distintos —el precio de la etiqueta y el importe cobrado—
+y juntarlos invita a compararlos. Tocar la fila lleva a Opciones de cobro, así que
+se cambia la regla sin salir del formulario.
 
 **Método de pago y vuelto.** El cobro pregunta el método antes de tocar el stock.
 En efectivo pide el billete recibido, avisa si no alcanza ("Faltan 4.400", nunca
