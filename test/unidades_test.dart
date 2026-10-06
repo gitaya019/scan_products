@@ -15,11 +15,12 @@ void main() {
           Unidades.factor(origen: 'g', destino: 'kg'), closeTo(0.001, 1e-12));
       expect(
         Unidades.factor(origen: 'lb', destino: 'g'),
-        closeTo(453.59237, 1e-9),
+        500,
       );
+      // La libra del comercio es medio kilo, no la libra exacta de 453,59237 g.
       expect(
         Unidades.factor(origen: 'kg', destino: 'lb'),
-        closeTo(2.20462, 1e-5),
+        2,
       );
     });
 
@@ -47,13 +48,21 @@ void main() {
   });
 
   group('Unidades.convertir', () {
-    test('120 g son 0,2646 lb', () {
+    test('120 g son 0,24 lb', () {
       final libras = Unidades.convertir(
         120,
         origen: 'g',
         destino: 'lb',
       );
-      expect(libras, closeTo(0.264555, 1e-6));
+      expect(libras, closeTo(0.24, 1e-9));
+    });
+
+    test('las equivalencias pedidas: 1 kg = 1.000 g, 2 lb = 1 kg', () {
+      expect(Unidades.convertir(1, origen: 'kg', destino: 'g'), 1000);
+      expect(Unidades.convertir(2, origen: 'lb', destino: 'kg'), 1);
+      expect(Unidades.convertir(1, origen: 'lb', destino: 'g'), 500);
+      // Y de vuelta: 1 kg son dos libras, no 2,2.
+      expect(Unidades.convertir(1, origen: 'kg', destino: 'lb'), 2);
     });
 
     test('conversion invalida devuelve la cantidad sin tocar', () {
@@ -69,9 +78,9 @@ void main() {
         unidadVenta: 'g',
         unidadPrecio: 'lb',
       );
-      expect(libras, closeTo(0.264555, 1e-6));
-      // El total que sale de ahi debe ser 1.323, no 600.000.
-      expect(libras * 5000, closeTo(1322.77, 1e-2));
+      expect(libras, closeTo(0.24, 1e-9));
+      // El total que sale de ahi debe ser 1.200, no 600.000.
+      expect(libras * 5000, closeTo(1200, 1e-2));
     });
 
     test('0,5 kg con el kilo a 8.000 no convierte nada', () {
@@ -98,6 +107,19 @@ void main() {
       expect(texto, isNotNull);
       expect(texto, startsWith('1 lb = '));
       expect(texto, contains(' kg'));
+    });
+
+    test('el factor se muestra sin ceros de relleno', () {
+      // Con la libra en 500 g, 1 g son exactamente 0,002 lb. Sin recortar los
+      // ceros el formulario mostraria "1 g = 0,002000 lb".
+      expect(
+        Unidades.equivalencia(unidadVenta: 'g', unidadPrecio: 'lb'),
+        '1 g = 0,002 lb',
+      );
+      expect(
+        Unidades.equivalencia(unidadVenta: 'g', unidadPrecio: 'kg'),
+        '1 g = 0,001 kg',
+      );
     });
 
     test('sin conversion posible no inventa texto', () {

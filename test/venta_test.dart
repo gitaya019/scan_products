@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:scan_products/models/producto_model.dart';
 import 'package:scan_products/screens/venta_screen.dart';
 import 'package:scan_products/services/database_helper.dart';
+import 'package:scan_products/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'helpers/test_database.dart';
@@ -110,9 +111,44 @@ void main() {
     await tester.pump();
   }
 
-  Future<void> cobrar(WidgetTester tester) async {
+  /// Cobra la venta: abre el dialogo de cobro, paga en efectivo y confirma.
+  ///
+  /// El boton de la barra dice "Cobrar" y el del dialogo "Confirmar", asi que
+  /// los dos finders no se pisan.
+  Future<void> cobrar(WidgetTester tester, {String? conBillete}) async {
     await tester.tap(find.text('Cobrar'));
     for (var i = 0; i < 6; i++) {
+      await io(tester);
+      await tester.pump();
+    }
+    await asentar(tester);
+
+    expect(
+      find.text('METODO DE PAGO'),
+      findsOneWidget,
+      reason: 'no se abrio el dialogo de cobro',
+    );
+
+    if (conBillete != null) {
+      await tester.enterText(find.byType(TextField).last, conBillete);
+    } else {
+      // El atajo de billete existe justamente para no escribir el numero; usarlo
+      // aqui ademas lo cubre. Si el total no cabe en ningun billete (no pasa en
+      // estas pruebas, pero el helper es generico) se escribe a mano.
+      final chips = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(GlassChip),
+      );
+      if (chips.evaluate().isNotEmpty) {
+        await tester.tap(chips.first);
+      } else {
+        await tester.enterText(find.byType(TextField).last, '100000');
+      }
+    }
+    await tester.pump();
+
+    await tester.tap(find.text('Confirmar'));
+    for (var i = 0; i < 8; i++) {
       await io(tester);
       await tester.pump();
     }

@@ -4,11 +4,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/carrito_item.dart';
+import '../models/metodo_pago.dart';
 import '../models/producto_model.dart';
+import '../services/cobro_controller.dart';
 import '../services/database_helper.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
 import '../utils/precios.dart';
+import '../widgets/producto_text_field.dart';
 import '../widgets/vista_previa_cobro.dart';
 
 /// Punto de venta: carrito en memoria que al finalizar descuenta stock y
@@ -26,6 +29,18 @@ class _VentaScreenState extends State<VentaScreen> {
   List<Producto> _resultados = [];
   bool _buscando = false;
   bool _finalizando = false;
+
+  /// Modo de redondeo vigente.
+  ///
+  /// Empieza en el valor por defecto y lo realinea en `didChangeDependencies`:
+  /// un inicializador de campo no puede llamar a `dependOnInheritedWidgetOfExactType`
+  /// porque corre antes de que el elemento este montado.
+  RedondeoCobro _redondeo = RedondeoCobro.sinRedondeo;
+
+  /// Controller del que se escucha, para re-redondear si el ajuste cambia con la
+  /// venta abierta. Se guarda aparte porque `dispose` necesita quitar el
+  /// listener sin volver a consultar el arbol.
+  CobroController? _cobro;
 
   double get _total => _items.fold(0.0, (suma, item) => suma + item.subtotal);
 
@@ -63,7 +78,35 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final controller = CobroScope.of(context);
+    if (identical(controller, _cobro)) return;
+    _cobro?.removeListener(_alCambiarRedondeo);
+    _cobro = controller..addListener(_alCambiarRedondeo);
+    _alCambiarRedondeo();
+  }
+
+  /// Re-redondea el carrito cuando el tendero cambia el ajuste con la venta
+  /// abierta.
+  ///
+  /// Cada linea guarda el modo con el que se creo. Sin esto, un producto
+  /// agregado antes del cambio y otro posterior se cobrarian con reglas
+  /// distintas y el total seria una mezcla que nadie pidio.
+  void _alCambiarRedondeo() {
+    final modo = _cobro?.value ?? RedondeoCobro.sinRedondeo;
+    if (modo == _redondeo) return;
+    _redondeo = modo;
+    for (final item in _items) {
+      item.redondeo = modo;
+    }
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _cobro?.removeListener(_alCambiarRedondeo);
     _searchController
       ..removeListener(_onSearchChanged)
       ..dispose();
@@ -167,8 +210,11 @@ class _VentaScreenState extends State<VentaScreen> {
     );
 
     if (resultado != null && resultado > 0 && mounted) {
-      setState(() =>
-          _items.add(CarritoItem(producto: producto, cantidad: resultado)));
+      setState(() => _items.add(CarritoItem(
+            producto: producto,
+            cantidad: resultado,
+            redondeo: _redondeo,
+          )));
     }
   }
 
@@ -195,6 +241,15 @@ class _VentaScreenState extends State<VentaScreen> {
   Future<void> _finalizar() async {
     if (_items.isEmpty || _finalizando) return;
 
+    // El cobro se pregunta **antes** de tocar el stock. Si el dialogo de cobro
+    // se cancela, no hay venta, no hay descuento de inventario y no hay nada que
+    // reversar: preguntar despues obligaria a devolver el stock a mano.
+    final pago = await showDialog<_Cobro>(
+      context: context,
+      builder: (ctx) => _DialogoCobro(total: _total),
+    );
+    if (pago == null || !mounted) return;
+
     setState(() => _finalizando = true);
 
     final copia = List<CarritoItem>.from(_items);
@@ -208,7 +263,12 @@ class _VentaScreenState extends State<VentaScreen> {
           id: item.producto.id,
         );
       }
-      await DatabaseHelper.instance.addVenta(total, copia);
+      await DatabaseHelper.instance.addVenta(
+        total,
+        copia,
+        metodoPago: pago.metodo,
+        recibido: pago.recibido,
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() => _finalizando = false);
@@ -223,7 +283,12 @@ class _VentaScreenState extends State<VentaScreen> {
 
     await showDialog<void>(
       context: context,
-      builder: (ctx) => _DialogoVentaFinalizada(items: copia, total: total),
+      builder: (ctx) => _DialogoVentaFinalizada(
+        items: copia,
+        total: total,
+        metodoPago: pago.metodo,
+        recibido: pago.recibido,
+      ),
     );
 
     if (mounted) Navigator.pop(context);
@@ -1038,14 +1103,32 @@ List<Widget> _desgloseImpuesto(ThemeData theme, List<CarritoItem> items) {
 class _DialogoVentaFinalizada extends StatelessWidget {
   final List<CarritoItem> items;
   final double total;
+  final MetodoPago metodoPago;
+  final double? recibido;
 
-  const _DialogoVentaFinalizada({required this.items, required this.total});
+  const _DialogoVentaFinalizada({
+    required this.items,
+    required this.total,
+    required this.metodoPago,
+    required this.recibido,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return AlertDialog(
+      // Con el teclado arriba (el campo de busqueda conserva el foco hasta que
+      // se confirma la venta) la altura util baja a un puñado de pixeles. Con
+      // `scrollable` el titulo y el contenido van en un `SingleChildScrollView`
+      // y solo las acciones quedan fijas, que es el unico que no debe moverse.
+      //
+      // Ojo: el `Flexible` del `ListView` de aca abajo tenia que salirse con
+      // `scrollable`, porque dentro de un scroll vertical las restricciones de
+      // alto son infinitas y un `Flexible` ahi revienta con "RenderFlex children
+      // have non-zero flex but incoming height constraints are unbounded". El
+      // que la lista sea corta ya la comprime sola al ser una `Column`.
+      scrollable: true,
       title: Row(
         children: [
           Container(
@@ -1083,40 +1166,18 @@ class _DialogoVentaFinalizada extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: items.length,
-                separatorBuilder: (_, __) => const Divider(height: 16),
-                itemBuilder: (context, index) {
-                  final item = items[index];
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          item.producto.nombre,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyLarge,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Text(
-                        '${formatCantidad(item.cantidad, porPeso: item.esPorPeso)} x',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        formatCurrency(item.subtotal),
-                        style: theme.textTheme.titleMedium,
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
+            for (var i = 0; i < items.length; i++) ...[
+              if (i > 0) const Divider(height: 16),
+              _FilaVentaFinalizada(item: items[i]),
+            ],
             const Divider(height: 24),
             ..._desgloseImpuesto(theme, items),
+            const Divider(height: 24),
+            _FilaResumenPago(
+              metodoPago: metodoPago,
+              recibido: recibido,
+              total: total,
+            ),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -1160,6 +1221,476 @@ class _DialogoVentaFinalizada extends StatelessWidget {
           icon: Icons.check_rounded,
           onPressed: () => Navigator.pop(context),
         ),
+      ],
+    );
+  }
+}
+
+/// Una linea de la lista de productos de la venta confirmada.
+///
+/// Se extrajo del `ListView` porque al poner `scrollable` en el `AlertDialog`
+/// no cabia ni `Flexible` ni un `ListView` dentro de una `Column` de alto
+/// infinito.
+class _FilaVentaFinalizada extends StatelessWidget {
+  final CarritoItem item;
+
+  const _FilaVentaFinalizada({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            item.producto.nombre,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyLarge,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        Text(
+          '${formatCantidad(item.cantidad, porPeso: item.esPorPeso)} x',
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          formatCurrency(item.subtotal),
+          style: theme.textTheme.titleMedium,
+        ),
+      ],
+    );
+  }
+}
+
+/// Como se pago y cuanto se devolvio, en el dialogo de venta confirmada.
+///
+/// Sin esta fila el cajero no tiene donde anotar a quien le dio Nequi, y al
+/// cierre del dia no hay forma de saber si los vueltos cuadran con la caja.
+class _FilaResumenPago extends StatelessWidget {
+  final MetodoPago metodoPago;
+  final double? recibido;
+  final double total;
+
+  const _FilaResumenPago({
+    required this.metodoPago,
+    required this.recibido,
+    required this.total,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // El vuelto va en su propia fila y no en la misma que el importe. En un
+    // dialogo angosto (232 px utiles con el teclado abierto) las tres cosas en
+    // una sola `Row` se salen: "Recibido" + "10.000" + "Vuelto 9.000" no caben
+    // en horizontal, y un `Expanded` en la etiqueta no salva a las otras dos,
+    // que no son flexibles.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Icon(
+              metodoPago.icono,
+              size: 18,
+              color: isDark ? AppColors.neonCyan : AppColors.cyanDeep,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                recibido == null ? metodoPago.etiqueta : 'Recibido',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              formatCurrency(recibido ?? total),
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
+              ),
+            ),
+          ],
+        ),
+        if (recibido != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Align(
+            alignment: Alignment.centerRight,
+            // El vuelto lleva su propio color: es el dato que el cajero necesita
+            // leer de un vistazo antes de entregar.
+            child: GlassChip(
+              icon: Icons.undo_rounded,
+              label: etiquetaVuelto(total, recibido!),
+              color: isDark ? AppColors.neonLime : AppColors.success,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Lo que el dialogo de cobro devuelve al punto de venta.
+///
+/// `recibido` es `null` para un pago exacto (Nequi) y tambien para efectivo si
+/// el cajero no lo escribio: se guarda lo que se sabe, no un cero inventado.
+class _Cobro {
+  final MetodoPago metodo;
+  final double? recibido;
+
+  const _Cobro({required this.metodo, this.recibido});
+}
+
+/// Dialogo de cobro: como paga y, si es efectivo, cuanto entrego.
+///
+/// Va **antes** de descontar el stock. Si fuera despues, cancelar el cobro
+/// dejaria la venta sin registrar con el inventario ya movido, y deshacer eso a
+/// mano es el peor error posible en una caja.
+class _DialogoCobro extends StatefulWidget {
+  final double total;
+
+  const _DialogoCobro({required this.total});
+
+  @override
+  State<_DialogoCobro> createState() => _DialogoCobroState();
+}
+
+class _DialogoCobroState extends State<_DialogoCobro> {
+  MetodoPago _metodo = MetodoPago.efectivo;
+  String _error = '';
+
+  /// Viven lo que vive el dialogo, por el gotcha de AGENTS.md.
+  late final TextEditingController _recibidoController;
+  late final FocusNode _focoRecibido;
+
+  @override
+  void initState() {
+    super.initState();
+    _recibidoController = TextEditingController();
+    _focoRecibido = FocusNode();
+  }
+
+  @override
+  void dispose() {
+    _recibidoController.dispose();
+    _focoRecibido.dispose();
+    super.dispose();
+  }
+
+  double get _recibido => parseCurrency(_recibidoController.text);
+
+  double get _vuelto => _recibido - widget.total;
+
+  /// Billetes que se ofrecen para un total dado.
+  ///
+  /// Solo los que cubren el total: ofrecer un billete de 5.000 para un total de
+  /// 12.000 invita a elegir algo que no sirve. El campo acepta cualquier otro
+  /// numero, los chips son un atajo y no una restriccion.
+  static List<double> billetesPara(double total) {
+    const denominaciones = [
+      1000.0,
+      2000.0,
+      5000.0,
+      10000.0,
+      20000.0,
+      50000.0,
+      100000.0,
+      200000.0,
+    ];
+    return denominaciones.where((b) => b >= total).take(4).toList();
+  }
+
+  void _aceptar() {
+    if (_metodo.pideVuelto) {
+      if (_recibidoController.text.trim().isEmpty) {
+        setState(() => _error = 'Escribe cuanto recibiste.');
+        return;
+      }
+      // Menos del total no es un vuelto negativo, es una venta incompleta. Sin
+      // este chequeo la venta se guardaba por menos de lo que el cliente debia
+      // y el faltante se descubria al dia siguiente.
+      if (_vuelto < 0) {
+        setState(
+          () => _error = 'Faltan ${formatCurrency(-_vuelto)} para completar.',
+        );
+        return;
+      }
+    }
+
+    Navigator.pop(
+      context,
+      _Cobro(
+        metodo: _metodo,
+        // Para un pago exacto no hay billete: se guarda `null` y no una copia
+        // del total, porque "llego exacto" y "no aplica" no son el mismo dato.
+        recibido: _metodo.pideVuelto ? _recibido : null,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return AlertDialog(
+      // El campo tiene `autofocus`, asi que el teclado se abre y la altura util
+      // se reduce a la mitad: sin `scrollable` el contenido se sale del dialogo.
+      scrollable: true,
+      title: const Text('Cobrar'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('TOTAL A COBRAR', style: theme.textTheme.labelSmall),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: NeonText(
+                    text: formatCurrency(widget.total),
+                    style: theme.textTheme.headlineMedium,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 5),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  'COP',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('METODO DE PAGO', style: theme.textTheme.labelSmall),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            children: [
+              for (final metodo in MetodoPago.values)
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: metodo == MetodoPago.values.last ? 0 : 6,
+                    ),
+                    child: _BotonMetodoPago(
+                      metodo: metodo,
+                      seleccionado: _metodo == metodo,
+                      onTap: () {
+                        setState(() {
+                          _metodo = metodo;
+                          _error = '';
+                        });
+                        if (!metodo.pideVuelto) _focoRecibido.unfocus();
+                      },
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (_metodo.pideVuelto) ...[
+            const SizedBox(height: AppSpacing.md),
+            ProductoTextField(
+              controller: _recibidoController,
+              label: 'Billete recibido',
+              icon: Icons.payments_outlined,
+              keyboardType: TextInputType.number,
+              focusNode: _focoRecibido,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              suffixText: 'COP',
+              onChanged: (_) {
+                if (_error.isNotEmpty) setState(() => _error = '');
+              },
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _FilaBilletes(
+              billetes: billetesPara(widget.total),
+              color: theme.colorScheme.primary,
+              onTap: (valor) {
+                _recibidoController.text = valor.round().toString();
+                setState(() => _error = '');
+                _focoRecibido.unfocus();
+              },
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            // El vuelto se muestra mientras se escribe y en rojo si el billete
+            // no alcanza: es el dato que evita entregar de mas.
+            Container(
+              width: double.maxFinite,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(AppShape.sm),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text('Vuelto', style: theme.textTheme.titleMedium),
+                  ),
+                  Text(
+                    _recibidoController.text.trim().isEmpty
+                        ? '--'
+                        : formatCurrency(_vuelto < 0 ? 0 : _vuelto),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: _vuelto < 0
+                          ? AppColors.danger
+                          : (isDark ? AppColors.neonLime : AppColors.success),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (_error.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              _error,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.danger,
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        NeonButton(
+          // "Confirmar" y no "Cobrar": el titulo del dialogo ya dice "Cobrar"
+          // y el boton de la barra tambien. Dos widgets con el mismo texto
+          // apilados obligan a los tests a acotar el finder con `descendant`
+          // para no tocar el equivocado.
+          label: 'Confirmar',
+          icon: Icons.check_rounded,
+          compact: true,
+          expand: false,
+          onPressed: _aceptar,
+        ),
+      ],
+    );
+  }
+}
+
+/// Boton de metodo de pago dentro del dialogo de cobro.
+class _BotonMetodoPago extends StatelessWidget {
+  final MetodoPago metodo;
+  final bool seleccionado;
+  final VoidCallback onTap;
+
+  const _BotonMetodoPago({
+    required this.metodo,
+    required this.seleccionado,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final accent = theme.colorScheme.primary;
+
+    return Semantics(
+      button: true,
+      selected: seleccionado,
+      label: metodo.etiqueta,
+      // `Material` explicito porque `InkWell` pinta su ripple sobre el
+      // `Material` mas cercano y sin el no se ve nada.
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppShape.sm),
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: AppDuration.fast,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xs,
+              vertical: AppSpacing.sm,
+            ),
+            decoration: BoxDecoration(
+              color: seleccionado
+                  ? accent.withValues(alpha: 0.22)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppShape.sm),
+              border: Border.all(
+                color: seleccionado
+                    ? accent.withValues(alpha: 0.7)
+                    : accent.withValues(alpha: 0.2),
+                width: seleccionado ? 1.6 : 1,
+              ),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  metodo.icono,
+                  size: 20,
+                  color: seleccionado
+                      ? (isDark ? Colors.white : accent)
+                      : accent.withValues(alpha: 0.7),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  metodo.etiqueta,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: seleccionado
+                        ? (isDark ? Colors.white : accent)
+                        : accent.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Atajos de billete: los que cubren el total, para no escribir el numero.
+class _FilaBilletes extends StatelessWidget {
+  final List<double> billetes;
+  final Color color;
+  final ValueChanged<double> onTap;
+
+  const _FilaBilletes({
+    required this.billetes,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (billetes.isEmpty) return const SizedBox.shrink();
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final billete in billetes)
+          GlassChip(
+            icon: Icons.payments_rounded,
+            label: formatCurrency(billete),
+            color: color,
+            onTap: () => onTap(billete),
+          ),
       ],
     );
   }

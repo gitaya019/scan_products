@@ -15,6 +15,10 @@ class ProductoTextField extends StatelessWidget {
   final TextCapitalization textCapitalization;
   final List<TextInputFormatter>? inputFormatters;
 
+  /// Se avisa en cada tecla. Lo necesitan los campos quedependen de su valor
+  /// para mostrar algo en vivo (por ejemplo, el vuelto de un cobro).
+  final ValueChanged<String>? onChanged;
+
   const ProductoTextField({
     super.key,
     required this.controller,
@@ -28,6 +32,7 @@ class ProductoTextField extends StatelessWidget {
     this.maxLines = 1,
     this.textCapitalization = TextCapitalization.none,
     this.inputFormatters,
+    this.onChanged,
   });
 
   @override
@@ -42,6 +47,7 @@ class ProductoTextField extends StatelessWidget {
       maxLines: maxLines,
       textCapitalization: textCapitalization,
       inputFormatters: inputFormatters,
+      onChanged: onChanged,
       style: TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w500,

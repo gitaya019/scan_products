@@ -31,6 +31,29 @@ void main() {
     });
   });
 
+  group('etiquetaVuelto', () {
+    test('dice el vuelto cuando el billete alcanza', () {
+      expect(etiquetaVuelto(6400, 10000), 'Vuelto 3.600');
+    });
+
+    test('dice "Sin vuelto" cuando el billete es justo', () {
+      // "Vuelto 0" se lee como que falto algo. El texto tiene que decir que no
+      // falto.
+      expect(etiquetaVuelto(6400, 6400), 'Sin vuelto');
+    });
+
+    test('dice cuanto falta cuando el billete no alcanza', () {
+      // El caso que no puede ser un 0: mostrarlo como cero deja al cajero
+      // creyendo que entrego bien el cambio.
+      expect(etiquetaVuelto(6400, 2000), 'Faltan 4.400');
+    });
+
+    test('redondea a pesos enteros antes de comparar', () {
+      expect(etiquetaVuelto(6400.4, 10000), 'Vuelto 3.600');
+      expect(etiquetaVuelto(6399.6, 10000), 'Vuelto 3.600');
+    });
+  });
+
   group('formatCantidad', () {
     test('por peso acepta decimales de una cifra', () {
       expect(formatCantidad(1.5, porPeso: true), '1.5');

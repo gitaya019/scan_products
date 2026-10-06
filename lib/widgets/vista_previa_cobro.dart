@@ -9,8 +9,8 @@ import '../utils/formatters.dart';
 /// escribiendo, sin esperar a confirmar.
 ///
 /// Es la pieza que evita el error caro: con la libra a 5.000, escribir 120 en
-/// una balanza que lee gramos son 1.323, no 600.000. La conversion se muestra
-/// abierta ("120 g = 0,2646 lb") en vez de oculta, para que el cajero vea de
+/// una balanza que lee gramos son 1.200, no 600.000. La conversion se muestra
+/// abierta ("120 g = 0,24 lb") en vez de oculta, para que el cajero vea de
 /// donde sale el numero.
 class VistaPreviaCobro extends StatelessWidget {
   final Producto producto;

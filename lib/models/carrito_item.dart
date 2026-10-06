@@ -10,11 +10,26 @@ class CarritoItem {
   /// 120 para una cebolla de 120 g, aunque el precio este por libra.
   double cantidad;
 
-  CarritoItem({required this.producto, this.cantidad = 1.0});
+  /// Como se redondea [subtotal]. Lo elige el tendero en "Opciones de cobro".
+  ///
+  /// Vive en la linea y no solo en el total porque si se redondease solo el
+  /// total, la suma de las lineas del ticket no daria lo que se cobro y el
+  /// cliente podria reclamarlo con razon.
+  ///
+  /// Es mutable a proposito: si el usuario cambia el ajuste con la venta
+  /// abierta, el punto de venta reasigna el modo a las lineas que ya estan en el
+  /// carrito. Dejarlo fijo mezclaria dos reglas en un mismo total.
+  RedondeoCobro redondeo;
+
+  CarritoItem({
+    required this.producto,
+    this.cantidad = 1.0,
+    this.redondeo = RedondeoCobro.sinRedondeo,
+  });
 
   /// Cantidad expresada en la unidad en la que esta cotizado el producto.
   ///
-  /// 120 g -> 0,2646 lb. Si no hay conversion posible devuelve la cantidad tal
+  /// 120 g -> 0,24 lb. Si no hay conversion posible devuelve la cantidad tal
   /// cual, porque un factor inventado seria peor que no convertir.
   double get cantidadEnUnidadPrecio => producto.necesitaConversion
       ? Unidades.aUnidadPrecio(
@@ -27,7 +42,7 @@ class CarritoItem {
   /// Precio de una unidad de [Producto.unidad].
   ///
   /// Si el precio esta en otra unidad hay que escalarlo para poder multiplicar
-  /// por la cantidad capturada. Por eso 5.000 por lb son 11,02 por g.
+  /// por la cantidad capturada. Por eso 5.000 por lb son 10 por g.
   double get precioUnitarioVenta => producto.necesitaConversion
       ? producto.precio *
           Unidades.aUnidadPrecio(
@@ -37,9 +52,9 @@ class CarritoItem {
           )
       : producto.precio;
 
-  /// Total de la linea, ya redondeado a pesos.
+  /// Total de la linea, ya redondeado al modo de cobro elegido.
   double get subtotal =>
-      Precios.redondearMoneda(precioUnitarioVenta * cantidad);
+      Precios.redondearCobro(precioUnitarioVenta * cantidad, redondeo);
 
   bool get esPorPeso => producto.ventaPorPeso;
 

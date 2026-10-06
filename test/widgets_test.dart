@@ -326,8 +326,8 @@ void main() {
         VistaPreviaCobro(producto: cebolla(), controller: controller),
       );
 
-      // 120 g con la libra a 5.000 son 1.323, no 600.000.
-      expect(find.text('Se cobra 1.323'), findsOneWidget);
+      // 120 g con la libra a 5.000 son 1.200, no 600.000.
+      expect(find.text('Se cobra 1.200'), findsOneWidget);
     });
 
     testWidgets('explica de donde sale el total', (tester) async {
@@ -373,11 +373,10 @@ void main() {
       );
 
       expect(find.textContaining('Escribe la cantidad'), findsOneWidget);
-      controller.text = '453';
+      controller.text = '250';
       await tester.pump();
-      // 453,59 g ~= una libra.
-      // 453 / 453,59237 x 5.000 = 4.993,38 -> 4.993
-      expect(find.text('Se cobra 4.993'), findsOneWidget);
+      // 250 g = media libra exacta, y media libra de 5.000 son 2.500.
+      expect(find.text('Se cobra 2.500'), findsOneWidget);
     });
 
     testWidgets('sin conversion no inventa explicacion', (tester) async {

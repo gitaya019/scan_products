@@ -409,11 +409,20 @@ class GlassChip extends StatelessWidget {
   final String label;
   final Color color;
 
+  /// Convierte el chip en un boton.
+  ///
+  /// Antes de existir esto, un chip seleccionable se armaba con un `GlassChip`
+  /// metido en un `GestureDetector`, y el ripple se comia el padding del chip.
+  /// Aqui se resuelve con un `Material` transparente, que es lo que `InkWell`
+  /// necesita para pintar.
+  final VoidCallback? onTap;
+
   const GlassChip({
     super.key,
     this.icon,
     required this.label,
     this.color = AppColors.neonCyan,
+    this.onTap,
   });
 
   @override
@@ -421,7 +430,7 @@ class GlassChip extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Container(
+    final contenido = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: isDark ? 0.16 : 0.12),
@@ -445,6 +454,18 @@ class GlassChip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+
+    if (onTap == null) return contenido;
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppShape.pill),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppShape.pill),
+        child: contenido,
       ),
     );
   }

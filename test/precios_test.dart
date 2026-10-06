@@ -165,4 +165,97 @@ void main() {
       expect(Precios.redondearMoneda(1322.22), 1322);
     });
   });
+
+  group('Precios.redondearCobro', () {
+    test('sin redondeo solo deja pesos enteros', () {
+      expect(Precios.redondearCobro(1322.77), 1323);
+      expect(Precios.redondearCobro(1322.22), 1322);
+      expect(
+        Precios.redondearCobro(1322.77, RedondeoCobro.sinRedondeo),
+        1323,
+      );
+    });
+
+    test('multiplos de 50 toma el mas cercano', () {
+      const m = RedondeoCobro.multiploDe50;
+      // Los cuatro ejemplos que pidio el caso de uso.
+      expect(Precios.redondearCobro(927, m), 950);
+      expect(Precios.redondearCobro(980, m), 1000);
+      expect(Precios.redondearCobro(10737, m), 10750);
+      expect(Precios.redondearCobro(25000, m), 25000,
+          reason: 'lo que ya es multiplo se queda, no sube ni baja');
+    });
+
+    test('multiplos de 50 empata hacia arriba', () {
+      // 925 esta a 25 de 900 y a 25 de 950. `round` en Dart empata hacia
+      // arriba, que es lo que quiere el tendero: 25 pesos mas de venta nunca
+      // se quejan, 25 menos si.
+      expect(Precios.redondearCobro(925, RedondeoCobro.multiploDe50), 950);
+    });
+
+    test('techo a la centena siempre sube', () {
+      const t = RedondeoCobro.techoCien;
+      expect(Precios.redondearCobro(924, t), 1000);
+      expect(Precios.redondearCobro(9823, t), 9900);
+      expect(Precios.redondearCobro(1, t), 100);
+    });
+
+    test('techo a la centena respeta lo que ya es multiplo exacto', () {
+      // El bug clasico: 9800 / 100 puede dar 97,99999999999999 en punto
+      // flotante y un `ceil` a secas lo sube a 9900. Con el divisor ya
+      // redondeado, 9.800 se queda en 9.800.
+      const t = RedondeoCobro.techoCien;
+      expect(Precios.redondearCobro(9800, t), 9800);
+      expect(Precios.redondearCobro(10000, t), 10000);
+      expect(Precios.redondearCobro(10700, t), 10700);
+      expect(Precios.redondearCobro(25000, t), 25000);
+    });
+
+    test('el ruido de punto flotante no sube un peso de mas', () {
+      // 0.1 + 0.2 = 0.30000000000000004. Redondeado a pesos es 0 y el techo
+      // no tiene nada que subir. Sin el paso previo a pesos enteros, el
+      // redondeo multiple lo habria carriedo a 50.
+      expect(Precios.redondearCobro(0.1 + 0.2, RedondeoCobro.multiploDe50), 0);
+      expect(Precios.redondearCobro(0, RedondeoCobro.techoCien), 0);
+    });
+
+    test('cero y negativos no se inflan', () {
+      for (final modo in RedondeoCobro.values) {
+        expect(Precios.redondearCobro(0, modo), 0);
+        expect(Precios.redondearCobro(-500, modo), 0,
+            reason: 'un total negativo es un dato roto, no un descuento');
+      }
+    });
+
+    test('es idempotente: aplicar dos veces da el mismo numero', () {
+      // Importante para el guardado: si el precio ya se redondeo al crear el
+      // producto, pasarlo otra vez al cobrar no debe moverlo.
+      for (final modo in RedondeoCobro.values) {
+        for (final importe in const <double>[924, 980, 9823, 10737, 25000]) {
+          final uno = Precios.redondearCobro(importe, modo);
+          expect(Precios.redondearCobro(uno, modo), uno,
+              reason: '$importe con $modo no es estable');
+        }
+      }
+    });
+  });
+
+  group('RedondeoCobro', () {
+    test('desdeNombre acepta lo guardado y rechaza lo desconocido', () {
+      expect(RedondeoCobro.desdeNombre('techoCien'), RedondeoCobro.techoCien);
+      expect(RedondeoCobro.desdeNombre('multiploDe50'),
+          RedondeoCobro.multiploDe50);
+      // Un valor desconocido o ausente cae en el modo por defecto: cobrar
+      // nunca puede depender de que una preferencia se haya podido leer.
+      expect(RedondeoCobro.desdeNombre('inventado'), RedondeoCobro.sinRedondeo);
+      expect(RedondeoCobro.desdeNombre(null), RedondeoCobro.sinRedondeo);
+    });
+
+    test('todos los modos tienen etiqueta y ejemplo', () {
+      for (final modo in RedondeoCobro.values) {
+        expect(modo.etiqueta, isNotEmpty);
+        expect(modo.ejemplo, isNotEmpty);
+      }
+    });
+  });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scan_products/models/carrito_item.dart';
+import 'package:scan_products/models/metodo_pago.dart';
 import 'package:scan_products/models/producto_model.dart';
 import 'package:scan_products/models/venta_detalle.dart';
 import 'package:scan_products/services/database_helper.dart';
@@ -124,6 +125,60 @@ void main() {
       final detalles =
           await DatabaseHelper.instance.getVentaDetalles(ventas.first.id!);
       expect(detalles, hasLength(2));
+    });
+
+    test('guarda como se cobro y el billete recibido', () async {
+      final producto = crearProducto();
+      await DatabaseHelper.instance.addProducto(producto.toMap());
+      producto.id = 1;
+
+      await DatabaseHelper.instance.addVenta(
+        3000,
+        [CarritoItem(producto: producto, cantidad: 1)],
+        metodoPago: MetodoPago.efectivo,
+        recibido: 5000,
+      );
+
+      final venta = (await DatabaseHelper.instance.getVentas()).first;
+      expect(venta.metodoPago, MetodoPago.efectivo);
+      expect(venta.recibido, 5000);
+      expect(venta.vuelto, 2000, reason: '5.000 para una venta de 3.000');
+    });
+
+    test('un pago por nequi se guarda sin billete', () async {
+      final producto = crearProducto();
+      await DatabaseHelper.instance.addProducto(producto.toMap());
+      producto.id = 1;
+
+      await DatabaseHelper.instance.addVenta(
+        3000,
+        [CarritoItem(producto: producto, cantidad: 1)],
+        metodoPago: MetodoPago.nequi,
+      );
+
+      final venta = (await DatabaseHelper.instance.getVentas()).first;
+      expect(venta.metodoPago, MetodoPago.nequi);
+      // `null` y no una copia del total: "llego exacto" y "no aplica" no son el
+      // mismo dato, y en un cierre de caja se necesitan distinguidos.
+      expect(venta.recibido, isNull);
+      expect(venta.vuelto, isNull);
+    });
+
+    test('sin metodo indicado la venta queda en efectivo', () async {
+      // Los parametros son opcionales para no romper a quien ya llamaba con dos
+      // argumentos.
+      final producto = crearProducto();
+      await DatabaseHelper.instance.addProducto(producto.toMap());
+      producto.id = 1;
+
+      await DatabaseHelper.instance.addVenta(
+        3000,
+        [CarritoItem(producto: producto, cantidad: 1)],
+      );
+
+      final venta = (await DatabaseHelper.instance.getVentas()).first;
+      expect(venta.metodoPago, MetodoPago.efectivo);
+      expect(venta.recibido, isNull);
     });
 
     test('getVentas ordena de mas reciente a mas antigua', () async {

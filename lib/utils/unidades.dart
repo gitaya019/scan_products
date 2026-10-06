@@ -24,10 +24,17 @@ class Unidades {
   ];
 
   /// Unidades de masa, en gramos.
+  ///
+  /// `lb` vale **500 g**, no 453,59237. La libra exacta es medio kilo menos
+  /// algo (`2 lb = 907,18 g`), pero en el comercio se maneja como medio kilo:
+  /// se vende "la libra" de queso a 8.000 y dos libras se pesan en un kilo. Con
+  /// el factor real el ticket descuadra contra lo que el cliente cree que esta
+  /// pagando. La equivalencia pedida es `1 kg = 1.000 g`, `1 lb = 500 g`,
+  /// `2 lb = 1 kg`.
   static const Map<String, double> _masa = {
     'kg': 1000,
     'g': 1,
-    'lb': 453.59237,
+    'lb': 500,
   };
 
   /// Unidades de volumen, en mililitros.
@@ -78,7 +85,7 @@ class Unidades {
   /// Convierte la cantidad capturada en la balanza a la unidad en la que se
   /// cobra el producto.
   ///
-  /// `120` gramos con el precio por libra -> `0,2646` libras.
+  /// `120` gramos con el precio por libra -> `0,24` libras.
   static double aUnidadPrecio(
     double cantidad, {
     required String unidadVenta,
@@ -102,9 +109,18 @@ class Unidades {
     final f = factor(origen: unidadVenta, destino: unidadPrecio);
     if (f == null) return null;
 
-    // "1 g = 0,0022 lb" se lee mejor que "1 g = 0.00220462 lb".
-    final texto = f.toStringAsFixed(f < 0.01 ? 6 : 4).replaceAll('.', ',');
-    return '1 $unidadVenta = $texto $unidadPrecio';
+    // "1 g = 0,002 lb" se lee mejor que "1 g = 0.002 lb". Con la libra en 500 g
+    // el factor cae a 0,002 justo, asi que sin recortar los ceros de relleno
+    // todas las equivalencias darian "0,002000". Tres decimales alcanzan: por
+    // debajo de un miligramo el gramo ya no se distingue en la balanza.
+    var texto = f.toStringAsFixed(f < 0.01 ? 3 : 4);
+    if (texto.contains('.')) {
+      texto = texto.replaceFirst(RegExp(r'0+$'), '').replaceFirst(
+            RegExp(r'\.$'),
+            '',
+          );
+    }
+    return '1 $unidadVenta = ${texto.replaceAll('.', ',')} $unidadPrecio';
   }
 
   /// Si la unidad admite decimales.

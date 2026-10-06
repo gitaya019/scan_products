@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../data/categorias.dart';
 import '../models/carrito_item.dart';
+import '../models/metodo_pago.dart';
 import '../models/producto_model.dart';
 import '../models/venta_detalle.dart';
 import '../models/venta_model.dart';
@@ -17,6 +18,21 @@ class EstadoCategoriaException implements Exception {
   final String mensaje;
 
   const EstadoCategoriaException(this.mensaje);
+
+  @override
+  String toString() => mensaje;
+}
+
+/// Error de una operacion sobre el catalogo de marcas.
+///
+/// Existe aparte de [EstadoCategoriaException] aunque los dos digan lo mismo:
+/// duplicar la clase es preferible a un `EstadoCatalogoException` con un
+/// campo `que`, y asi el mensaje sale con las palabras de la marca sin
+/// concatenar cadenas en el punto de lanzamiento.
+class EstadoMarcaException implements Exception {
+  final String mensaje;
+
+  const EstadoMarcaException(this.mensaje);
 
   @override
   String toString() => mensaje;
@@ -53,7 +69,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 9,
+      version: 10,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -119,7 +135,9 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         total REAL,
         fecha TEXT,
-        estado TEXT DEFAULT 'completada'
+        estado TEXT DEFAULT 'completada',
+        metodo_pago TEXT DEFAULT 'efectivo',
+        recibido REAL
       )
     ''');
     // Las columnas deben coincidir con las de _onUpgrade (v4 -> v8), si no
@@ -195,6 +213,22 @@ class DatabaseHelper {
       // productos viejos no quedan con una categoria huerfana que el usuario no
       // ve en el menu lateral.
       await _createCategorias(db);
+    }
+    if (oldVersion < 10) {
+      // v10: como se pago cada venta.
+      //
+      // - `metodo_pago`: efectivo o nequi. Sin esto el historial no puede
+      //   separar lo que entro por caja de lo que entro por transferencia, que
+      //   es justo el dato con el que se concilia un cierre de tienda.
+      // - `recibido`: el billete que entrego el cliente. El vuelto NO se
+      //   guarda porque es `recibido - total` y las dos columnas ya estan; una
+      //   tercera seria una forma mas de que el receipt no cuadre.
+      //
+      // Las ventas viejas quedan en 'efectivo' con `recibido` NULL, que se
+      // interpreta como "no se registro".
+      await db.execute(
+          "ALTER TABLE ventas ADD COLUMN metodo_pago TEXT DEFAULT 'efectivo'");
+      await db.execute('ALTER TABLE ventas ADD COLUMN recibido REAL');
     }
   }
 
@@ -272,7 +306,16 @@ class DatabaseHelper {
   /// Registra una venta y sus lineas en una transaccion.
   ///
   /// Si falla cualquier insercion no queda una venta a medias.
-  Future<int> addVenta(double total, List<CarritoItem> items) async {
+  ///
+  /// [metodoPago] y [recibido] son opcionales para no romper a quien ya la
+  /// llamaba con dos argumentos (las pruebas de base de datos y cualquier
+  /// script): sin ellos la venta queda como efectivo sin billete registrado.
+  Future<int> addVenta(
+    double total,
+    List<CarritoItem> items, {
+    MetodoPago metodoPago = MetodoPago.efectivo,
+    double? recibido,
+  }) async {
     final db = await database;
     final fecha = DateTime.now().toIso8601String();
 
@@ -281,6 +324,8 @@ class DatabaseHelper {
         'total': total,
         'fecha': fecha,
         'estado': 'completada',
+        'metodo_pago': metodoPago.name,
+        'recibido': recibido,
       });
 
       for (final item in items) {
@@ -359,6 +404,98 @@ class DatabaseHelper {
     } catch (_) {
       return nombre.trim();
     }
+  }
+
+  /// Renombra una marca y arrastra los productos que la usan.
+  ///
+  /// `productos.marca` guarda el texto, no el `id`, asi que el `UPDATE` va en
+  /// cascada por nombre. La comparacion es sin distinguir mayusculas para que
+  /// un producto guardado como "alfa" tambien se mueva a "Alfa".
+  ///
+  /// Devuelve el nombre canonico nuevo, o `null` si la marca no existia.
+  Future<String?> renombrarMarca(String actual, String nuevo) async {
+    final origen = await getMarca(actual);
+    if (origen == null) return null;
+
+    final destino = nuevo.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (destino.isEmpty) return origen;
+
+    final chocante = await getMarca(destino);
+    if (chocante != null && chocante.toLowerCase() != origen.toLowerCase()) {
+      throw EstadoMarcaException('Ya existe la marca "$chocante".');
+    }
+
+    // Renombrar a si mismo no es un cambio. Sin este corte, escribir "alfa"
+    // sobre la marca "Alfa" terminaba guardandola en minuscula: el catalogo
+    // perdia la capitalizacion que el tendero escribio y todos sus productos se
+    // movian de forma inutil.
+    if (chocante != null) return origen;
+
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.update(
+        'marcas',
+        {'nombre': destino},
+        where: 'nombre = ? COLLATE NOCASE',
+        whereArgs: [origen],
+      );
+      await txn.update(
+        'productos',
+        {'marca': destino},
+        where: 'marca = ? COLLATE NOCASE',
+        whereArgs: [origen],
+      );
+    });
+
+    return destino;
+  }
+
+  /// Catalogo con la cuenta de productos de cada marca, en una sola consulta.
+  ///
+  /// Mismo motivo que `getCategoriasConConteo`: la pantalla necesita el numero
+  /// de cada fila y consultarlo en un bucle son N viajes a la base.
+  Future<Map<String, int>> getMarcasConConteo() async {
+    final db = await database;
+    final resultado = await db.rawQuery('''
+    SELECT m.nombre AS nombre, COUNT(p.id) AS total
+    FROM marcas m
+    LEFT JOIN productos p ON p.marca = m.nombre COLLATE NOCASE
+    GROUP BY m.id
+    ORDER BY m.nombre COLLATE NOCASE ASC
+  ''');
+
+    return {
+      for (final fila in resultado)
+        fila['nombre'] as String: (fila['total'] as int?) ?? 0,
+    };
+  }
+
+  /// Cuantos productos usan esta marca.
+  Future<int> contarProductosPorMarca(String nombre) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS total FROM productos '
+      'WHERE marca = ? COLLATE NOCASE',
+      [nombre.trim()],
+    );
+    return (result.first['total'] as int?) ?? 0;
+  }
+
+  /// Borra la marca del catalogo.
+  ///
+  /// Devuelve `false` — sin borrar nada — si hay productos que la usan: como
+  /// `productos.marca` es texto plano, borrarla los dejaria con una marca que no
+  /// aparece en ninguna parte.
+  Future<bool> eliminarMarca(String nombre) async {
+    if (await contarProductosPorMarca(nombre) > 0) return false;
+
+    final db = await database;
+    await db.delete(
+      'marcas',
+      where: 'nombre = ? COLLATE NOCASE',
+      whereArgs: [nombre.trim()],
+    );
+    return true;
   }
 
   /// Marcas que aparecen en productos, incluidas las que no estan en la tabla
@@ -457,6 +594,11 @@ class DatabaseHelper {
         'Ya existe la categoria "$chocante".',
       );
     }
+
+    // Renombrar a si mismo no es un cambio. Sin este corte, escribir "quesos"
+    // sobre la categoria "Quesos" la guardaba en minuscula y arrastraba a todos
+    // sus productos sin motivo.
+    if (chocante != null) return origen;
 
     final db = await database;
     await db.transaction((txn) async {

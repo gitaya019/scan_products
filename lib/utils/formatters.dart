@@ -19,6 +19,20 @@ double parseCurrency(String value) {
   return double.tryParse(cleanedValue) ?? 0.0;
 }
 
+/// Texto del vuelto de un cobro en efectivo.
+///
+/// Tres casos y no dos: un vuelto negativo **no** es "0", es plata que falta.
+/// Mostrarlo como `0` deja al cajero creyendo que entrego bien el cambio, y
+/// ese error sale del local, no de la app.
+String etiquetaVuelto(double total, double recibido) {
+  final diferencia = (recibido - total).roundToDouble();
+  if (diferencia < 0) return 'Faltan ${formatCurrency(-diferencia)}';
+  // "Sin vuelto" y no "Vuelto 0": un cero en un ticket se lee como que falto
+  // algo, y aqui no falto nada.
+  if (diferencia == 0) return 'Sin vuelto';
+  return 'Vuelto ${formatCurrency(diferencia)}';
+}
+
 /// Formatea una cantidad de stock segun si el producto se vende por peso.
 /// Enteros sin decimales, decimales con una sola cifra.
 String formatCantidad(double cantidad, {required bool porPeso}) {

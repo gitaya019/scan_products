@@ -58,6 +58,42 @@ class Precios {
   /// que el cliente nunca ve pero que si se acumulan en el reporte.
   static double redondearMoneda(double valor) => valor.roundToDouble();
 
+  /// Redondea [valor] segun el modo de cobro elegido en los ajustes.
+  ///
+  /// El redondeo a pesos ([RedondeoCobro.sinRedondeo]) siempre ocurre: es el
+  /// piso, no una opcion. Los otros dos modos llevan la cifra a un numero que
+  /// se pueda dictar por teléfono sin dudar.
+  ///
+  /// - [RedondeoCobro.multiploDe50] es el mas cercano: 927 -> 950, 980 -> 1.000.
+  /// - [RedondeoCobro.techoCien] siempre sube: 924 -> 1.000, 9.823 -> 9.900.
+  ///
+  /// Ojo con [RedondeoCobro.techoCien]: es agresivo a proposito. Un producto de
+  /// 300 pesos pasa a 400. Quien quiera un redondeo que solo ajuste la ultima
+  /// cifra tiene [RedondeoCobro.multiploDe50].
+  static double redondearCobro(
+    double valor, [
+    RedondeoCobro modo = RedondeoCobro.sinRedondeo,
+  ]) {
+    // Primero a pesos enteros: en COP no hay centimos, y esto evita que el ruido
+    // de punto flotante (`0.1 + 0.2`) termine en un peso de mas al dividir entre
+    // el paso de redondeo.
+    final pesos = redondearMoneda(valor);
+    if (pesos <= 0) return 0;
+
+    switch (modo) {
+      case RedondeoCobro.sinRedondeo:
+        return pesos;
+      case RedondeoCobro.multiploDe50:
+        return (pesos / 50).round() * 50;
+      case RedondeoCobro.techoCien:
+        // `ceil` a secas sube de mas lo que ya es multiplo exacto, porque
+        // 9.800 / 100 puede dar 97,99999999999999 en punto flotante. Comparar
+        // contra el entero ya redondeado distingue los dos casos sin `epsilon`.
+        final paso = (pesos / 100).round();
+        return paso * 100 >= pesos ? paso * 100 : (paso + 1) * 100;
+    }
+  }
+
   /// IVA acumulado de una venta con lineas de tasas distintas.
   ///
   /// Cada linea puede tener un IVA distinto (0, 5, 10, 19), asi que se extrae
@@ -101,5 +137,45 @@ class Precios {
 
     final valor = double.tryParse(limpio) ?? 0;
     return math.min(math.max(esNegativo ? -valor : valor, 0), 9999);
+  }
+}
+
+/// Como se redondea una cifra al cobrar.
+///
+/// Se elige en "Opciones de cobro" (barra lateral) y se guarda entre sesiones.
+/// El valor por defecto es [sinRedondeo]: la app no cambia los numeros que ya
+/// funcionan, el redondeo es una decision del tendero, no un comportamiento
+/// impuesto.
+enum RedondeoCobro {
+  /// Solo pesos enteros. Lo que hacia la app antes.
+  sinRedondeo,
+
+  /// Al multiplo de 50 mas cercano. 927 -> 950, 980 -> 1.000, 10.737 -> 10.750.
+  multiploDe50,
+
+  /// Siempre hacia arriba a la siguiente centena. 924 -> 1.000, 9.823 -> 9.900.
+  techoCien;
+
+  /// Texto corto para el selector.
+  String get etiqueta => switch (this) {
+        RedondeoCobro.sinRedondeo => 'Sin redondeo',
+        RedondeoCobro.multiploDe50 => 'Multiplos de 50',
+        RedondeoCobro.techoCien => 'Subir a la centena',
+      };
+
+  /// Una linea de ejemplo con el modo aplicado, para que el tendero vea el
+  /// efecto antes de activarlo en una venta real.
+  String get ejemplo => switch (this) {
+        RedondeoCobro.sinRedondeo => '927 queda 927',
+        RedondeoCobro.multiploDe50 => '927 queda 950 · 980 queda 1.000',
+        RedondeoCobro.techoCien => '924 queda 1.000 · 9.823 queda 9.900',
+      };
+
+  /// Valor persistido. Se guarda el `name` para no depender del orden del enum.
+  static RedondeoCobro desdeNombre(String? nombre) {
+    for (final modo in RedondeoCobro.values) {
+      if (modo.name == nombre) return modo;
+    }
+    return RedondeoCobro.sinRedondeo;
   }
 }

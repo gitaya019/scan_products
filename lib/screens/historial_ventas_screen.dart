@@ -203,6 +203,18 @@ class _TarjetaVenta extends StatelessWidget {
                           label: 'Anulada',
                           color: AppColors.danger,
                         ),
+                      ] else ...[
+                        // Como se cobro. Sin esto el cierre del dia no puede
+                        // separar lo que entro por caja de lo que entro por
+                        // transferencia.
+                        const SizedBox(width: AppSpacing.xs),
+                        GlassChip(
+                          icon: venta.metodoPago.icono,
+                          label: venta.metodoPago.etiqueta,
+                          color: isDark
+                              ? AppColors.neonAmber
+                              : AppColors.amberDeep,
+                        ),
                       ],
                     ],
                   ),
