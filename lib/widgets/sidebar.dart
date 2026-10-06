@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../screens/categorias_screen.dart';
 import '../screens/historial_ventas_screen.dart';
+import '../screens/marcas_screen.dart';
+import '../screens/opciones_cobro_screen.dart';
 import '../screens/reporte_ventas_screen.dart';
+import '../services/cobro_controller.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_controller.dart';
+import '../utils/precios.dart';
 
 /// Menu lateral con navegacion principal y el interruptor de tema.
 class Sidebar extends StatelessWidget {
@@ -72,6 +76,26 @@ class Sidebar extends StatelessWidget {
                       label: 'Categorias',
                       onTap: () => _ir(context, const CategoriasScreen()),
                     ),
+                    const SizedBox(height: AppSpacing.xs),
+                    _MenuItem(
+                      icon: Icons.label_rounded,
+                      label: 'Marcas',
+                      onTap: () => _ir(context, const MarcasScreen()),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    _SeccionLabel('Cobro'),
+                    // `CobroScope` solo notifica cuando cambia el controller, no
+                    // cuando el controller cambia de valor, asi que el texto del
+                    // detalle necesita su propio `ListenableBuilder`.
+                    ValueListenableBuilder<RedondeoCobro>(
+                      valueListenable: CobroScope.of(context),
+                      builder: (context, modo, _) => _MenuItem(
+                        icon: Icons.tune_rounded,
+                        label: 'Opciones de cobro',
+                        detalle: modo.etiqueta,
+                        onTap: () => _ir(context, const OpcionesCobroScreen()),
+                      ),
+                    ),
                     const SizedBox(height: AppSpacing.lg),
                     _SeccionLabel('Apariencia'),
                     _ToggleTema(controller: themeController),
@@ -79,7 +103,7 @@ class Sidebar extends StatelessWidget {
                     Center(
                       child: GlassChip(
                         icon: Icons.code_rounded,
-                        label: 'JACSOFT · v2.1.0',
+                        label: 'JACSOFT · v2.2.0',
                         color:
                             isDark ? AppColors.neonCyan : AppColors.neonViolet,
                       ),
@@ -198,11 +222,18 @@ class _MenuItem extends StatelessWidget {
   final VoidCallback onTap;
   final List<Color>? gradient;
 
+  /// Texto pequeno bajo la etiqueta, para mostrar el valor vigente de un ajuste.
+  ///
+  /// Sin esto, "Opciones de cobro" no dice si el redondeo esta activo o no: el
+  /// usuario tiene que entrar a verlo y acordarse de lo que vio.
+  final String? detalle;
+
   const _MenuItem({
     required this.icon,
     required this.label,
     required this.onTap,
     this.gradient,
+    this.detalle,
   });
 
   @override
@@ -241,9 +272,31 @@ class _MenuItem extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text(
-              label,
-              style: theme.textTheme.titleMedium,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              // `min` para que la fila no estire cuando hay detalle y no lo hay
+              // a la vez: el alto de la fila no puede depender de que dato se
+              // muestre hoy.
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium,
+                ),
+                if (detalle != null)
+                  Text(
+                    detalle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color:
+                          theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                      fontSize: 11.5,
+                    ),
+                  ),
+              ],
             ),
           ),
           Icon(

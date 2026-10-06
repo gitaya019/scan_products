@@ -6,6 +6,8 @@ import 'package:scan_products/screens/categorias_screen.dart';
 import 'package:scan_products/screens/edit_producto_screen.dart';
 import 'package:scan_products/screens/historial_ventas_screen.dart';
 import 'package:scan_products/screens/home_screen.dart';
+import 'package:scan_products/screens/marcas_screen.dart';
+import 'package:scan_products/screens/opciones_cobro_screen.dart';
 import 'package:scan_products/screens/reporte_ventas_screen.dart';
 import 'package:scan_products/screens/venta_screen.dart';
 import 'package:scan_products/services/database_helper.dart';
@@ -284,6 +286,36 @@ void main() {
 
       expect(find.text('Sin categorias'), findsOneWidget);
     });
+
+    testWidgets('marcas', (tester) async {
+      await prepararProductos(tester);
+      await montar(tester, (_) => const MarcasScreen());
+
+      expect(find.text('Marcas'), findsOneWidget);
+      // `prepararProductos` siembra un producto de marca "Diana", asi que el
+      // catalogo la trae con su conteo y no como "Sin productos".
+      expect(find.text('Diana'), findsOneWidget);
+      expect(find.text('1 producto'), findsOneWidget);
+    });
+
+    testWidgets('marcas sin catalogo', (tester) async {
+      await prepararVacio(tester);
+      await montar(tester, (_) => const MarcasScreen());
+
+      expect(find.text('Sin marcas'), findsOneWidget);
+    });
+
+    testWidgets('opciones de cobro', (tester) async {
+      await prepararVacio(tester);
+      await montar(tester, (_) => const OpcionesCobroScreen());
+
+      expect(find.text('Opciones de cobro'), findsOneWidget);
+      // Las tres opciones, cada una con su ejemplo.
+      expect(find.text('Sin redondeo'), findsOneWidget);
+      expect(find.text('Multiplos de 50'), findsOneWidget);
+      expect(find.text('Subir a la centena'), findsOneWidget);
+      expect(find.textContaining('9.823 queda 9.900'), findsOneWidget);
+    });
   });
 
   group('el tema claro renderiza lo mismo', () {
@@ -329,6 +361,28 @@ void main() {
       );
 
       expect(find.text('Lacteos'), findsOneWidget);
+    });
+
+    testWidgets('marcas claro', (tester) async {
+      await prepararProductos(tester);
+      await montar(
+        tester,
+        (_) => const MarcasScreen(),
+        brillo: Brightness.light,
+      );
+
+      expect(find.text('Diana'), findsOneWidget);
+    });
+
+    testWidgets('opciones de cobro claro', (tester) async {
+      await prepararVacio(tester);
+      await montar(
+        tester,
+        (_) => const OpcionesCobroScreen(),
+        brillo: Brightness.light,
+      );
+
+      expect(find.text('Subir a la centena'), findsOneWidget);
     });
   });
 }

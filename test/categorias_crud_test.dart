@@ -134,6 +134,17 @@ void main() {
 
       expect(await db.renombrarCategoria('Lacteos', 'Lacteos'), 'Lacteos');
     });
+
+    test('renombrar a si mismo solo en capitalizacion conserva el nombre',
+        () async {
+      await db.agregarCategoria('Lacteos');
+
+      // Escribirlo en minuscula no es un cambio: si se tomara como tal, la
+      // categoria quedaria guardada como "lacteos" y sus productos arrastrados
+      // sin motivo.
+      expect(await db.renombrarCategoria('Lacteos', 'lacteos'), 'Lacteos');
+      expect(await db.getCategorias(), ['Lacteos']);
+    });
   });
 
   group('eliminar', () {
