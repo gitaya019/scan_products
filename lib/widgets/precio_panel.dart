@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/cobro_controller.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
 import '../utils/precios.dart';
@@ -44,12 +45,19 @@ class PrecioPanel extends StatefulWidget {
   /// pantalla pueda armar el `Producto` al guardar.
   final ValueChanged<PrecioValores> onCambio;
 
+  /// Abre la pantalla de opciones de cobro desde la fila "Al cobrar".
+  ///
+  /// Lo pasan las pantallas y no el propio panel: un widget de `lib/widgets/`
+  /// no debe saber de pantallas. Si es `null` la fila es solo informacion.
+  final VoidCallback? onEditarCobro;
+
   const PrecioPanel({
     super.key,
     required this.costoInicial,
     required this.precioInicial,
     required this.ivaInicial,
     required this.onCambio,
+    this.onEditarCobro,
   });
 
   @override
@@ -176,6 +184,14 @@ class _PrecioPanelState extends State<PrecioPanel> {
     final precio = _precio;
     final margen = _margenActual();
 
+    // El redondeo no se guarda en el producto —el panel liga precio y margen y
+    // redondear aqui dejaria un producto cuyo margen real no es el de la
+    // pantalla—, asi que lo que se muestra es una **simulacion** de como se
+    // cobra con la opcion elegida. El panel se entera solo cuando el modo
+    // cambia: `CobroScope` no notifica de eso, asi que hay que escuchar el
+    // controller.
+    final cobro = CobroScope.of(context);
+
     return Column(
       children: [
         Row(
@@ -232,11 +248,16 @@ class _PrecioPanelState extends State<PrecioPanel> {
           },
         ),
         const SizedBox(height: AppSpacing.md),
-        _VistaPrevia(
-          costo: _costo,
-          precio: precio,
-          margen: margen,
-          iva: _iva,
+        ValueListenableBuilder<RedondeoCobro>(
+          valueListenable: cobro,
+          builder: (context, modo, _) => _VistaPrevia(
+            costo: _costo,
+            precio: precio,
+            margen: margen,
+            iva: _iva,
+            redondeo: modo,
+            onEditarCobro: widget.onEditarCobro,
+          ),
         ),
       ],
     );
@@ -249,12 +270,16 @@ class _VistaPrevia extends StatelessWidget {
   final double precio;
   final double margen;
   final double iva;
+  final RedondeoCobro redondeo;
+  final VoidCallback? onEditarCobro;
 
   const _VistaPrevia({
     required this.costo,
     required this.precio,
     required this.margen,
     required this.iva,
+    required this.redondeo,
+    this.onEditarCobro,
   });
 
   @override
@@ -341,7 +366,122 @@ class _VistaPrevia extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: AppSpacing.sm),
+          _FilaCobro(
+            precio: precio,
+            redondeo: redondeo,
+            onEditar: onEditarCobro,
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// Quanto se cobra realmente con la opcion de redondeo elegida.
+///
+/// No es un campo mas del formulario: el precio que se guarda sigue siendo el
+/// de arriba. Es la respuesta a "¿cuanto me van a dar por este producto?", que
+/// con redondeo al alza no es el numero que esta escrito en la etiqueta.
+///
+/// Va **debajo** del precio y no en la misma fila porque los dos numeros no
+/// significan lo mismo: uno es el precio del catalogo y este el importe cobrado.
+/// Juntarlos invita a compararlos.
+class _FilaCobro extends StatelessWidget {
+  final double precio;
+  final RedondeoCobro redondeo;
+  final VoidCallback? onEditar;
+
+  const _FilaCobro({
+    required this.precio,
+    required this.redondeo,
+    this.onEditar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cobrado = Precios.redondearCobro(precio, redondeo);
+    final diferencia = cobrado - precio;
+
+    final nota = switch (redondeo) {
+      RedondeoCobro.sinRedondeo => 'Se cobra el precio tal cual.',
+      _ when diferencia == 0 => 'Esta opcion no cambia este precio.',
+      _ when diferencia > 0 =>
+        'Esta opcion suma ${formatCurrency(diferencia)} al cobro.',
+      _ => 'Esta opcion descuenta ${formatCurrency(-diferencia)} del cobro.',
+    };
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onEditar,
+        borderRadius: BorderRadius.circular(AppShape.xs),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.tune_rounded,
+                size: 15,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'AL COBRAR',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      nota,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  NeonText(
+                    text: formatCurrency(cobrado),
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  Text(
+                    redondeo.etiqueta,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color:
+                          theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
+              ),
+              if (onEditar != null) ...[
+                const SizedBox(width: 2),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

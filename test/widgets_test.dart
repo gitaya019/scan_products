@@ -3,11 +3,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:scan_products/data/categorias.dart';
 import 'package:scan_products/models/marca.dart';
 import 'package:scan_products/models/producto_model.dart';
+import 'package:scan_products/services/cobro_controller.dart';
 import 'package:scan_products/theme/app_theme.dart';
+import 'package:scan_products/utils/precios.dart';
 import 'package:scan_products/widgets/categoria_selector.dart';
 import 'package:scan_products/widgets/marca_selector.dart';
+import 'package:scan_products/widgets/precio_panel.dart';
 import 'package:scan_products/widgets/presentacion_selector.dart';
 import 'package:scan_products/widgets/vista_previa_cobro.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Monta un widget suelto en el tema por defecto.
 ///
@@ -36,6 +40,12 @@ Future<void> _montar(WidgetTester tester, Widget hijo) async {
 }
 
 void main() {
+  // `PrecioPanel` lee el modo de redondeo de `CobroScope`, y `CobroController`
+  // lo carga de `shared_preferences`. Sin este mock el `await` del canal de
+  // plataforma no se resuelve nunca dentro del `FakeAsync` de `testWidgets` y la
+  // suite se queda colgada sin fallar.
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   group('CategoriaSelector', () {
     testWidgets('escribe, filtra y elige una predeterminada', (tester) async {
       final controller = TextEditingController();
@@ -399,6 +409,181 @@ void main() {
 
       expect(find.text('Se cobra 7.000'), findsOneWidget);
       expect(find.textContaining('equivale a'), findsNothing);
+    });
+  });
+
+  group('PrecioPanel y el redondeo del cobro', () {
+    /// Monta el panel con un modo de redondeo ya elegido.
+    ///
+    /// Sin `CobroScope` el panel cae en `sinRedondeo` (`CobroScope.of` fabrica un
+    /// controller de cosecha), asi que para probar un modo hay que envolverlo.
+    Future<void> montarConCobro(
+      WidgetTester tester,
+      RedondeoCobro modo,
+      Widget hijo,
+    ) async {
+      final controller = CobroController();
+      addTearDown(controller.dispose);
+      await controller.cambiar(modo);
+
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: CobroScope(
+                controller: controller,
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: hijo,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    PrecioPanel panel({double precio = 3240}) => PrecioPanel(
+          costoInicial: 2000,
+          precioInicial: precio,
+          ivaInicial: 19,
+          onCambio: (v) {},
+        );
+
+    /// Busca texto **dentro** de la fila "Al cobrar".
+    ///
+    /// El importe aparece varias veces en el panel —el campo del precio, la
+    /// base, el precio de venta— y lo que se prueba aqui es la copia de la fila
+    /// del redondeo, asi que las busquedas se acotan a esa fila.
+    Finder enFilaCobro(String texto) => find.descendant(
+          of: find
+              .ancestor(
+                of: find.text('AL COBRAR'),
+                matching: find.byType(Row),
+              )
+              .first,
+          matching: find.text(texto),
+        );
+
+    testWidgets('sin redondeo dice que se cobra el precio tal cual',
+        (tester) async {
+      await montarConCobro(tester, RedondeoCobro.sinRedondeo, panel());
+
+      expect(find.text('AL COBRAR'), findsOneWidget);
+      expect(enFilaCobro('3.240'), findsOneWidget);
+      expect(find.text('Se cobra el precio tal cual.'), findsOneWidget);
+    });
+
+    testWidgets('multiplos de 50 muestra el importe ajustado', (tester) async {
+      await montarConCobro(tester, RedondeoCobro.multiploDe50, panel());
+
+      // 3.240 -> 3.250, y el panel lo dice en voz alta para que no parezca un
+      // error de tecleo.
+      expect(enFilaCobro('3.250'), findsOneWidget);
+      expect(find.text('Multiplos de 50'), findsOneWidget);
+      expect(find.text('Esta opcion suma 10 al cobro.'), findsOneWidget);
+    });
+
+    testWidgets('techo a la centena muestra el importe ajustado',
+        (tester) async {
+      await montarConCobro(tester, RedondeoCobro.techoCien, panel());
+
+      expect(enFilaCobro('3.300'), findsOneWidget);
+      expect(find.text('Subir a la centena'), findsOneWidget);
+      expect(find.text('Esta opcion suma 60 al cobro.'), findsOneWidget);
+    });
+
+    testWidgets('avisa cuando el redondeo baja el cobro', (tester) async {
+      // Con multiplo de 50, 3.260 baja a 3.250. Un descuento no es un error y
+      // tiene que estar escrito, porque el precio de la etiqueta dice otra cosa.
+      await montarConCobro(
+          tester, RedondeoCobro.multiploDe50, panel(precio: 3260));
+
+      expect(enFilaCobro('3.250'), findsOneWidget);
+      expect(find.text('Esta opcion descuenta 10 del cobro.'), findsOneWidget);
+    });
+
+    testWidgets('el precio guardado no cambia por el redondeo', (tester) async {
+      // El panel avisa, no corrige: lo que se guarda es lo que se escribio, o
+      // el margen escrito dejaria de corresponder al margen real.
+      PrecioValores? ultimo;
+      await montarConCobro(
+        tester,
+        RedondeoCobro.techoCien,
+        PrecioPanel(
+          costoInicial: 2000,
+          precioInicial: 3240,
+          ivaInicial: 19,
+          onCambio: (v) => ultimo = v,
+        ),
+      );
+
+      expect(ultimo?.precio, 3240);
+    });
+
+    testWidgets('reacciona a cambiar la opcion sin recargar', (tester) async {
+      final controller = CobroController();
+      addTearDown(controller.dispose);
+
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: CobroScope(
+                controller: controller,
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: panel(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(enFilaCobro('3.240'), findsOneWidget);
+
+      await controller.cambiar(RedondeoCobro.techoCien);
+      await tester.pump();
+
+      expect(enFilaCobro('3.300'), findsOneWidget);
+    });
+
+    testWidgets('sin onEditarCobro la fila no parece un boton', (tester) async {
+      await montarConCobro(tester, RedondeoCobro.techoCien, panel());
+
+      expect(find.byIcon(Icons.chevron_right_rounded), findsNothing);
+    });
+
+    testWidgets('con onEditarCobro la fila abre las opciones', (tester) async {
+      var abierto = false;
+      await montarConCobro(
+        tester,
+        RedondeoCobro.techoCien,
+        PrecioPanel(
+          costoInicial: 2000,
+          precioInicial: 3240,
+          ivaInicial: 19,
+          onCambio: (v) {},
+          onEditarCobro: () => abierto = true,
+        ),
+      );
+
+      await tester.tap(find.text('AL COBRAR'));
+      await tester.pump();
+
+      expect(abierto, isTrue);
     });
   });
 }

@@ -15,6 +15,7 @@ import '../widgets/marca_selector.dart';
 import '../widgets/precio_panel.dart';
 import '../widgets/presentacion_selector.dart';
 import '../widgets/producto_text_field.dart';
+import 'opciones_cobro_screen.dart';
 
 /// Formulario para registrar un producto nuevo.
 ///
@@ -413,6 +414,15 @@ class _AddProductoScreenState extends State<AddProductoScreen> {
                           _precio = v.precio;
                           _iva = v.iva;
                         },
+                        // La fila "Al cobrar" lleva a las opciones: el redondeo
+                        // se elige una vez para toda la tienda, asi que desde
+                        // aqui se cambia y se vuelve al formulario.
+                        onEditarCobro: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const OpcionesCobroScreen(),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: AppSpacing.md),
                       Row(

@@ -11,6 +11,7 @@ import '../widgets/marca_selector.dart';
 import '../widgets/precio_panel.dart';
 import '../widgets/presentacion_selector.dart';
 import '../widgets/producto_text_field.dart';
+import 'opciones_cobro_screen.dart';
 
 /// Formulario de edicion de un producto existente, incluye eliminar.
 class EditProductoScreen extends StatefulWidget {
@@ -381,6 +382,12 @@ class _EditProductoScreenState extends State<EditProductoScreen> {
                           _precio = v.precio;
                           _iva = v.iva;
                         },
+                        onEditarCobro: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const OpcionesCobroScreen(),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: AppSpacing.md),
                       Row(
