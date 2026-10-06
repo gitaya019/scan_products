@@ -1,6 +1,6 @@
 # 🚀 Scan Products 📦📲
 
-**Versión 2.1.0** · App de inventario y punto de venta para pequeños comercios en Colombia.
+**Versión 2.2.0** · App de inventario y punto de venta para pequeños comercios en Colombia.
 
 Escanea códigos de barras, administra stock y cobra en segundos. Todo funciona
 sin conexión: los datos viven en el dispositivo.
@@ -14,7 +14,7 @@ sin conexión: los datos viven en el dispositivo.
 - 🔍 Búsqueda en vivo por nombre o código
 - 🗂️ ~80 categorías predeterminadas de tienda de barrio, agrupadas en 10 secciones
 - 🏷️ Marcas reutilizables con autocompletado y creación en línea
-- 📚 Catálogo de categorías administrable desde el menú lateral: crear, renombrar (mueve los productos) y borrar
+- 📚 Catálogos de categorías y marcas administrables desde el menú lateral: crear, renombrar (mueve los productos) y borrar
 - ⚠️ Filtro de stock bajo con contador en la barra superior
 - ➕ Alta rápida de stock desde la tarjeta del producto
 - ✏️ Crear, editar y eliminar productos
@@ -28,6 +28,8 @@ sin conexión: los datos viven en el dispositivo.
 - 🛒 Carrito con cantidades por peso/volumen o por unidad
 - ⚖️ Vista previa del cobro mientras se escribe la cantidad
 - 💵 Cobro con total en COP y descuento automático de stock
+- 🧮 Redondeo configurable: pesos enteros, múltiplo de 50 o subir a la centena
+- 💳 Método de pago (efectivo o Nequi) con billete recibido y vuelto en vivo
 - 🧾 Detalle de cada línea con unidad de medida
 - ♻️ Anulación de ventas que repone el stock
 
@@ -81,7 +83,7 @@ flutter run
 
 ### Requisitos
 - Flutter 3.47 o superior (Dart 3.6+)
-- Android 5.0 (API 21) o superior, o iOS 12+
+- Android 7.0 (API 24, el piso de `flutter.minSdkVersion`) o superior, o iOS 12+
 - Cámara para escanear (opcional: la app funciona sin ella usando búsqueda)
 
 ### Toolchain de Android
@@ -131,15 +133,22 @@ lo abre. `showDialog` devuelve en el `Navigator.pop`, pero la ruta sigue montada
 durante su transición de salida, y si el llamador libera el controller ahí el
 `TextField` lo lee ya muerto.
 
+`test/teclado_test.dart` recorre los diálogos con el teclado levantado y verifica
+que ninguno lance excepciones. Como `testWidgets` corre en `FakeAsync`, el I/O de
+`sqflite` solo avanza alternando `runAsync` y `pump`; `esperarHasta()` reintenta
+hasta que un `Finder` encuentra lo que busca en vez de contar vueltas a ciegas.
+
 La matemática de negocio tiene su propia suite, sin widgets:
 
 | Archivo | Cubre |
 |---|---|
-| `test/precios_test.dart` | IVA incluido, margen, redondeo |
+| `test/precios_test.dart` | IVA incluido, margen, redondeo del cobro |
 | `test/unidades_test.dart` | Conversión entre kg, g, lb, L y mL |
-| `test/carrito_test.dart` | Total de línea con unidades distintas |
+| `test/carrito_test.dart` | Total de línea con unidades distintas y redondeo por línea |
 | `test/categorias_test.dart` | Búsqueda y normalización de categorías |
 | `test/categorias_crud_test.dart` | Catálogo: renombrar en cascada, borrar con productos |
+| `test/marcas_crud_test.dart` | El mismo contrato para el catálogo de marcas |
+| `test/teclado_test.dart` | Flujos con el teclado abierto, sin excepciones |
 | `test/venta_test.dart` | Flujo de venta completo, de punta a punta |
 | `test/widgets_test.dart` | Selectores de categoría, marca y unidad |
 
@@ -155,9 +164,10 @@ lib/
 │   └── theme_controller.dart      Persistencia del modo claro/oscuro
 ├── data/
 │   └── categorias.dart            ~80 categorías predeterminadas, en secciones
-├── models/                        Producto, Venta, VentaDetalle, CarritoItem, Marca
+├── models/                        Producto, Venta, VentaDetalle, CarritoItem, Marca, MetodoPago
 ├── services/
-│   └── database_helper.dart       SQLite (5 tablas, versión 9)
+│   ├── database_helper.dart       SQLite (5 tablas, versión 10)
+│   └── cobro_controller.dart      Modo de redondeo del cobro, persistido
 ├── screens/
 │   ├── home_screen.dart           Inventario
 │   ├── add_producto_screen.dart   Alta de producto
@@ -165,7 +175,9 @@ lib/
 │   ├── venta_screen.dart          Punto de venta
 │   ├── historial_ventas_screen.dart
 │   ├── reporte_ventas_screen.dart
-│   └── categorias_screen.dart     CRUD del catálogo de categorías
+│   ├── categorias_screen.dart     CRUD del catálogo de categorías
+│   ├── marcas_screen.dart         CRUD del catálogo de marcas
+│   └── opciones_cobro_screen.dart Modo de redondeo del cobro
 ├── utils/
 │   ├── formatters.dart            Moneda COP, cantidades y fechas
 │   ├── precios.dart               IVA incluido y margen de ganancia
@@ -185,7 +197,7 @@ lib/
 
 ## 🗄️ Base de datos
 
-SQLite, 5 tablas, versión 9. Las migraciones en `_onUpgrade` van de v3 a v9 con
+SQLite, 5 tablas, versión 10. Las migraciones en `_onUpgrade` van de v3 a v10 con
 `ALTER TABLE`; `_createDB` debe mantenerse sincronizada con `_onUpgrade`.
 
 | Tabla | Contenido |
@@ -193,17 +205,19 @@ SQLite, 5 tablas, versión 9. Las migraciones en `_onUpgrade` van de v3 a v9 con
 | `productos` | id, nombre, codigo (único), categoria, precio, costo, peso, stock, marca, unidad_medida, unidad_venta, iva, venta_por_peso |
 | `marcas` | id, nombre (único), created_at — alimenta el autocompletado |
 | `categorias` | id, nombre (único), created_at — catálogo administrable |
-| `ventas` | id, total, fecha, estado (`completada` / `anulada`) |
+| `ventas` | id, total, fecha, estado (`completada` / `anulada`), metodo_pago, recibido |
 | `venta_detalles` | líneas de cada venta, con nombre/código/precio como snapshot |
 
 `productos.marca` y `productos.categoria` siguen siendo texto a propósito: un
 producto escrito a mano no depende de que exista la fila en `marcas` ni en
 `categorias`. Esas tablas solo sugieren y evitan escribir lo mismo dos veces.
 
-La diferencia es que `categorias` sí se administra: desde el menú lateral
-**Categorías** se crea, se renombra y se borra. Renombrar mueve en cascada los
-productos que la usan; borrar está bloqueado mientras haya productos
-apuntando a ella, porque su texto quedaría sin ninguna parte donde aparecer.
+La diferencia es que `categorias` y `marcas` sí se administran: desde el menú
+lateral, en la sección **Catálogo**, se crea, se renombra y se borra. Renombrar
+mueve en cascada los productos que la usan (sin distinguir mayúsculas, para que
+un producto guardado como "quesos" también se mueva a "Quesos"); borrar está
+bloqueado mientras haya productos apuntando a ella, porque su texto quedaría
+sin ninguna parte donde aparecer.
 
 ---
 
@@ -217,10 +231,33 @@ caro. Un producto tiene:
 | `unidad_medida` | La unidad en la que está **cotizado** el precio | `lb` |
 | `unidad_venta` | La unidad en la que se **pese** y se cuenta el stock | `g` |
 
-Con la libra a 5.000 y una cebolla de 120 g, `120 g → 0,2646 lb → $1.323`.
+Con la libra a 5.000 y una cebolla de 120 g, `120 g → 0,24 lb → $1.200`.
 Sin conversión serían 600.000. La conversión vive en `lib/utils/unidades.dart`
 y solo aplica cuando tiene sentido físico: masa↔masa y volumen↔volumen. Entre
 `paquete` y `caja` (o de masa a volumen) **no** se inventa un factor.
+
+**La libra son 500 gramos.** No la libra exacta (453,59237 g): en el mostrador
+"media libra" son 250 g y "1 kg" son dos libras. Con el valor exacto, el tiquete
+termina descontando de lo que el cliente cree que está pagando.
+
+**Redondeo al cobrar, no al guardar.** Desde el menú lateral, sección **Cobro**,
+se elige entre pesos enteros, múltiplo de 50 (927 → 950) o subir siempre a la
+centena (924 → 1.000, 9.823 → 9.900). El ajuste se aplica **por línea** del
+carrito, no solo al total, para que la suma de lo impreso sea exactamente lo
+cobrado, y si el tendero cambia la opción con la venta abierta se reaplica a
+las líneas ya agregadas: una venta con dos reglas distintas no se le puede
+explicar a un cliente.
+
+El precio del catálogo **no** se redondea al guardar. El formulario liga precio y
+margen, así que redondear el precio almacenaría un producto cuyo margen real no
+es el que está en pantalla (30% escrito, 33% guardado). El redondeo es una
+decisión del momento de cobro.
+
+**Método de pago y vuelto.** El cobro pregunta el método antes de tocar el stock.
+En efectivo pide el billete recibido, avisa si no alcanza ("Faltan 4.400", nunca
+un vuelto de cero) y muestra el cambio en vivo. Nequi guarda `recibido` nulo:
+"llegó exacto" y "no aplica" son datos distintos, y en un cierre de caja se
+necesitan los dos. El vuelto nunca se guarda, se deriva.
 
 **IVA incluido.** El precio de venta ya trae el IVA dentro: el cliente paga
 exactamente lo que ve en la etiqueta. El impuesto solo se extrae para

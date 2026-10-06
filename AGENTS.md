@@ -5,11 +5,11 @@
 Flutter inventory + point-of-sale app (Spanish, Colombian market, COP).
 
 - **Entrypoint:** `lib/main.dart` → `ScanProductsApp` → `HomeScreen`
-- **Database:** SQLite via `sqflite`, **version 9**, 5 tables:
+- **Database:** SQLite via `sqflite`, **version 10**, 5 tables:
   - `productos` (id, nombre, codigo UNIQUE, categoria, precio, costo, peso, stock, marca, unidad_medida, unidad_venta, iva, venta_por_peso)
   - `marcas` (id, nombre UNIQUE, created_at)
   - `categorias` (id, nombre UNIQUE, created_at)
-  - `ventas` (id, total, fecha ISO, estado `completada`|`anulada`)
+  - `ventas` (id, total, fecha ISO, estado `completada`|`anulada`, metodo_pago, recibido)
   - `venta_detalles` (venta_id FK CASCADE, producto_id, nombre, codigo, precio_unitario, cantidad, subtotal, unidad_medida, unidad_venta, venta_por_peso, iva)
 - **Orientation:** portrait only
 - **Theme:** light + dark, persisted with `shared_preferences`, toggle in the sidebar. Defaults to **dark**.
@@ -72,16 +72,19 @@ above so light/dark stay coherent.
 - **`lib/screens/home_screen.dart`** — product list, search, stock-low filter + badge, swipe-to-delete, quick-add stock
 - **`lib/screens/add_producto_screen.dart`** — create form in 3 sections; scanning detects duplicates and offers to add stock instead
 - **`lib/screens/edit_producto_screen.dart`** — edit form + "Valor en inventario" panel + delete
-- **`lib/screens/venta_screen.dart`** — POS: scan/search, cart, quantity dialog with live total, checkout
+- **`lib/screens/venta_screen.dart`** — POS: scan/search, cart, quantity dialog with live total, checkout (`_DialogoCobro`: method, bill, change)
 - **`lib/screens/historial_ventas_screen.dart`** — sale history, detail dialog with tax breakdown, void (restores stock)
 - **`lib/screens/reporte_ventas_screen.dart`** — day/week/month totals, IVA breakdown, best-selling product
 - **`lib/screens/categorias_screen.dart`** — category catalog CRUD from the sidebar: search, create, rename (cascades to products), delete (blocked while in use)
-- **`lib/models/`** — `Producto`, `Venta`, `VentaDetalle`, `CarritoItem`, `Marca` (all with `toMap()`/`fromMap()`)
+- **`lib/screens/marcas_screen.dart`** — brand catalog CRUD, same shape as categories. The template for any future catalog screen
+- **`lib/screens/opciones_cobro_screen.dart`** — the three rounding modes with a worked example each
+- **`lib/models/`** — `Producto`, `Venta`, `VentaDetalle`, `CarritoItem`, `Marca`, `MetodoPago` (all with `toMap()`/`fromMap()`)
 - **`lib/services/database_helper.dart`** — singleton, lazy init, cached `Database`
-- **`lib/utils/formatters.dart`** — `formatCurrency()`, `parseCurrency()`, `formatCantidad()`, `labelCantidad()`, `labelStock()`, `formatFecha()`
-- **`lib/utils/precios.dart`** — business math: `precioSinIVA`, `ivaIncluido`, `precioDesdeCosto`, `margenDesdePrecios`, `ivaDeLineas`, `redondearMoneda`, `parsePorcentaje`
+- **`lib/services/cobro_controller.dart`** — `CobroController` (`ValueNotifier<RedondeoCobro>`, persisted via `shared_preferences`) + `CobroScope`, an `InheritedWidget` installed in `main.dart`. `CobroScope.of` returns a throwaway controller when no scope is present, so a screen can be pumped bare in a test
+- **`lib/utils/formatters.dart`** — `formatCurrency()`, `parseCurrency()`, `formatCantidad()`, `labelCantidad()`, `labelStock()`, `formatFecha()`, `etiquetaVuelto()`
+- **`lib/utils/precios.dart`** — business math: `precioSinIVA`, `ivaIncluido`, `precioDesdeCosto`, `margenDesdePrecios`, `ivaDeLineas`, `redondearMoneda`, `redondearCobro`, `parsePorcentaje`, `RedondeoCobro`
 - **`lib/utils/unidades.dart`** — unit conversion table (masa/volumen/conteo)
-- **`lib/widgets/sidebar.dart`** — drawer + theme switch + navigation (including Categorias)
+- **`lib/widgets/sidebar.dart`** — drawer + theme switch + navigation, grouped in "Catalogo" (Categorias, Marcas) and "Cobro" (Opciones de cobro). `_MenuItem.detalle` carries the current value of a setting and must be wrapped in a `ValueListenableBuilder`, since `CobroScope` only notifies when the controller itself is swapped
 - **`lib/widgets/producto_text_field.dart`** — base text field
 - **`lib/widgets/precio_field.dart`** — COP price field, reformats on focus loss
 - **`lib/widgets/precio_panel.dart`** — bidirectional costo ↔ margen ↔ precio with live preview
@@ -93,15 +96,20 @@ above so light/dark stay coherent.
 ## Business Rules
 
 - **Umbral stock bajo = 5** (`_HomeScreenState._umbralStockBajo`)
-- **Unidades:** `Unidades.todas` = `['unidad', 'kg', 'g', 'lb', 'L', 'mL', 'paquete', 'caja']`. Mass base is the gram (lb = 453.59237), volume base the mL, counting units are non-convertible.
+- **Unidades:** `Unidades.todas` = `['unidad', 'kg', 'g', 'lb', 'L', 'mL', 'paquete', 'caja']`. Mass base is the gram, volume base the mL, counting units are non-convertible. **`lb` = 500 g, not 453.59237** — the commercial pound, so `1 kg = 2 lb` exactly and `5.000`/lb works out to a clean `10`/g. Using the exact pound makes the receipt disagree with what the customer believes they're paying.
 - **Two units per product, never one.** `unidad_medida` is the unit the price is quoted in; `unidad_venta` is the unit it's weighed and counted in. `null` in `unidad_venta` means "same as the price", which is what pre-v8 rows carry. `Producto.unidad` resolves the null; `Producto.necesitaConversion` is true only when the units differ **and** `Unidades.factor()` returns non-null (so g↔L never silently multiplies).
-- **Cart total:** `CarritoItem.subtotal` = `precioUnitarioVenta × cantidad`, rounded to whole pesos. 120 g at 5.000/lb = 1.323, not 600.000.
+- **Cart total:** `CarritoItem.subtotal` = `precioUnitarioVenta × cantidad` passed through `Precios.redondearCobro` with the line's own `redondeo`. 120 g at 5.000/lb = 1.200, not 600.000.
+- **Rounding applies at checkout, per line.** `RedondeoCobro` has three modes: `sinRedondeo` (pesos enteros), `multiploDe50` (nearest: 927→950), `techoCien` (always up: 924→1.000, 9.823→9.900). It lives on `CarritoItem.redondeo` (mutable) rather than only on the total, so the sum of the printed lines **is** what was charged. The POS re-applies the mode to existing lines when the setting changes mid-sale; mixing two rules in one total is not a thing the user can explain to a customer.
+- **The catalog price is NOT rounded on save.** `PrecioPanel` binds precio ↔ margen, so rounding the price at save time would store a product whose real margin isn't the one on screen (30% written, 33% saved). Rounding is a charge-time decision.
+- **Checkout asks before touching stock.** `_finalizar()` opens `_DialogoCobro` first; only after the payment is confirmed does it decrement inventory. Cancelling then leaves nothing to undo.
+- **Payment:** `MetodoPago.efectivo` requires the received bill (`recibido`), validates it covers the total, and shows the change live; `MetodoPago.nequi` stores `recibido = null` because "paid exact" and "not applicable" are different facts in a cash close. `Venta.vuelto` is derived, never stored. A bill that falls short is reported as `Faltan X`, never as a zero change.
 - **Step size:** `0.1` for kg/lb/L, `1` for g/mL and counting units. A gram-scale increment of 0,1 g is scale noise and would need 1.200 taps for one onion.
 - **IVA is INCLUDED in the sale price.** The customer pays exactly the shelf price; `Precios.precioSinIVA` only extracts the tax for reporting. Per-line rate is stored on `venta_detalles.iva` so a mixed-rate sale (0/5/10/19) still breaks down. Never change the charged total to show tax.
 - **The "precio base" the user types is the purchase COST.** Margin applies over cost (`costo × (1 + margen/100)`). `PrecioPanel` binds both directions with a `_sincronizando` guard so typing a margin doesn't cascade or move the cursor.
 - **Categories:** free text with ~80 presets as shortcuts. `Categorias.normalizar()` maps a case-insensitive match back to the canonical spelling so "quesos" and "Quesos" aren't two categories.
 - **Brands:** `productos.marca` stays TEXT on purpose — a hand-typed product must not depend on a `marcas` row existing. The table only feeds autocomplete and inline creation; `sincronizarMarcasDesdeProductos()` back-fills from existing products.
 - **The category catalog mirrors the brand one** (`categorias`, v9): `productos.categoria` is TEXT for the same reason, the table feeds the sidebar CRUD plus the selector's `propias` suggestions, and `sincronizarCategoriasDesdeProductos()` back-fills. `renombrarCategoria()` cascades to `productos.categoria` (compared `COLLATE NOCASE`, because a pre-catalog row can hold a different spelling) inside one transaction; `eliminarCategoria()` returns `false` without touching anything while products still use it. `normalizarCategoria()` is the **read-only** canonical lookup used before saving, so a failed save can't leave an orphan row.
+- **Renaming a category or brand to itself is a no-op.** When the destination matches the origin `COLLATE NOCASE`, both renames return the stored spelling without writing. Otherwise typing `alfa` over `Alfa` would lowercase the catalog entry and drag every product along with it.
 - **Currency:** COP, `NumberFormat.decimalPattern('es_CO')`, rounded, no symbol — `currency()` with `symbol: ''` leaves a trailing space
 
 ## Conventions
@@ -110,6 +118,8 @@ above so light/dark stay coherent.
 - Model `fromMap` normalizes `int` → `double` via a private `_aDoble` helper (SQLite returns `int` for whole numbers)
 - Screens are `StatefulWidget` with a private `_XState`
 - Private widget classes are prefixed with `_`
+- **A dialog's button label must be unique on the screen it opens over.** `find.text('Cobrar')` is ambiguous if the bottom-bar button and the dialog's confirm button share it, and a test that taps it silently hits the wrong one. The charge dialog confirms with **"Confirmar"** while the bottom bar stays **"Cobrar"**
+- **An `Expanded` does not save a non-flexible sibling.** `_FilaResumenPago` uses a `Column` (label+amount, then the change chip) because with the keyboard up the dialog content is ~232 px and `Recibido` + `10.000` + `Vuelto 9.000` don't fit in one `Row`. Split rows before reaching for `FittedBox`
 
 ## Android Toolchain
 
@@ -163,7 +173,7 @@ The remaining warnings are expected and not ours to fix:
 |---|---|
 | `flutter pub get` | Install dependencies |
 | `flutter analyze` | Must stay at **0 issues**. `analysis_options.yaml` adds 10 extra lints beyond `flutter_lints` |
-| `flutter test` | 175 tests |
+| `flutter test` | 240 tests |
 | `flutter run` | Run on device |
 | `flutter build apk --release` | Android release build |
 | `flutter build ios` | iOS release build |
@@ -180,11 +190,13 @@ The remaining warnings are expected and not ours to fix:
 | `test/screens_test.dart` | Every screen renders against a seeded DB in both themes — catches layout overflows and bad `ColorScheme` reads. Add/edit use a 6000/7000 px window so the whole form lays out without scrolling. `montar()` waits for the loading spinner to disappear via `esperarCarga()`, never a fixed number of pumps |
 | `test/venta_test.dart` | 6 end-to-end sale tests: search → add → charge → confirmation → Listo, IVA not altering the total, stock decrement, persisted IVA |
 | `test/dialogo_cantidad_test.dart` | The quantity dialog's controller lifecycle and its layout with the keyboard up. Reproduces the device crash by pumping the route's exit transition with `viewInsets` set — a plain pop alone does **not** trigger it |
-| `test/precios_test.dart` | IVA-included math, margin over cost, rounding, `parsePorcentaje` |
+| `test/precios_test.dart` | IVA-included math, margin over cost, `redondearMoneda`, `RedondeoCobro` (nearest/ceiling, exact multiples, FP noise, idempotence), `parsePorcentaje` |
 | `test/unidades_test.dart` | kg/g/lb/L/mL factors, `convertir`, `equivalencia`, unit classification |
-| `test/carrito_test.dart` | Line totals with distinct price/weighing units, incompatible-unit fallbacks |
+| `test/carrito_test.dart` | Line totals with distinct price/weighing units, incompatible-unit fallbacks, per-line rounding |
 | `test/categorias_test.dart` | Preset list integrity, search, `normalizar` |
-| `test/categorias_crud_test.dart` | Category catalog: dedup by case, rename cascade (incl. mismatched spellings), delete blocked while in use, read-only `normalizarCategoria`, back-fill sync |
+| `test/categorias_crud_test.dart` | Category catalog: dedup by case, rename cascade (incl. mismatched spellings and rename-to-itself), delete blocked while in use, read-only `normalizarCategoria`, back-fill sync |
+| `test/marcas_crud_test.dart` | The same contract for the brand catalog: `getMarcasConConteo` keeps 0-count rows, cascade by `COLLATE NOCASE`, `EstadoMarcaException` on collision, delete blocked while in use |
+| `test/teclado_test.dart` | Keyboard-up regression suite: full sale, cancel the charge dialog (asserts no sale recorded), insufficient bill, rename/create category and brand, cancel a dialog. `drenar()` collects every `tester.takeException()`, `esperarHasta()` retries until a `Finder` matches |
 | `test/widgets_test.dart` | `CategoriaSelector`, `MarcaSelector`, `UnidadVentaSelector`, `PresentacionSelector`, `VistaPreviaCobro` |
 
 **Critical:** `sqflite` does not work headless. Use `sqflite_common_ffi` via
@@ -195,6 +207,20 @@ set `DatabaseHelper.databasePath = ':memory:'`.
 runs a repeating `AnimationController`, so there is no settled frame and
 `pumpAndSettle` blocks until it times out. Pump a fixed number of frames
 instead — see `montar()` in `test/screens_test.dart`.
+
+**Critical:** never override `FlutterError.onError` to collect errors in a test.
+The binding asserts `'_pendingExceptionDetails != null'` and reports less than
+the real error. Drain the queue instead with `tester.takeException()` (see
+`drenar()` in `test/teclado_test.dart`). If the error's originating widget is
+needed, install a handler that **forwards** to the previous one and prints
+`FlutterErrorDetails.toString()` — never one that swallows it.
+
+**Critical:** `testWidgets` runs in `FakeAsync`, so real `await` on sqflite I/O
+never completes on its own. `pump` alone leaves the `await` stuck and
+`runAsync` alone leaves the dependent `setState` pending; alternate them. A
+fixed number of alternations is a bet on how many reads are queued — prefer
+`esperarHasta()`, which retries until a `Finder` matches and uses the count only
+as a ceiling.
 
 **Critical:** `_createDB` and `_onUpgrade` must stay in sync. A fresh install
 fails if `CREATE TABLE` is missing a column that `_onUpgrade` adds via
