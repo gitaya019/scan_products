@@ -45,3 +45,6 @@ app.*.map.json
 /android/app/release
 # Widget Preview related
 .widget_preview/
+
+# DevTools
+devtools_options.yaml

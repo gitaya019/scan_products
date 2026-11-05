@@ -1,6 +1,6 @@
 # 🚀 Scan Products 📦📲
 
-**Versión 2.2.0** · App de inventario y punto de venta para pequeños comercios en Colombia.
+**Versión 2.3.0** · App de inventario y punto de venta para pequeños comercios en Colombia.
 
 Escanea códigos de barras, administra stock y cobra en segundos. Todo funciona
 sin conexión: los datos viven en el dispositivo.
@@ -289,4 +289,4 @@ el round-trip cuadra aunque el producto cambie de unidad después.
 
 ---
 
-Desarrollado por **JACSOFT** · Colombia 🇨🇴
+Desarrollado por **DEVAYA** · Colombia 🇨🇴

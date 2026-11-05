@@ -20,7 +20,7 @@ void main() {
     expect(AppTheme.light.brightness, Brightness.light);
   });
 
-  test('el tema oscuro usa la paleta neona', () {
+  test('el tema oscuro usa la paleta corporativa', () {
     final scheme = AppTheme.dark.colorScheme;
     expect(scheme.primary, AppColors.neonViolet);
     expect(scheme.secondary, AppColors.neonCyan);

@@ -5,42 +5,42 @@ import 'package:flutter/services.dart';
 
 /// Tokens de diseño compartidos por toda la app.
 ///
-/// La paleta es "neón sobre cristal": un fondo profundo con manchas de
-/// aurora (cian / violeta / magenta) y superficies translúcidas encima.
+/// La paleta es verde corporativo empresarial: tonos verde esmeralda y
+/// verde azulado sobre cristal sobrio, diseñada para una experiencia de
+/// usuario cómoda, profesional y sin fatiga visual.
 class AppColors {
   const AppColors._();
 
-  // Base oscura
-  static const Color inkDeep = Color(0xFF07060F);
-  static const Color inkMid = Color(0xFF0F0D1C);
-  static const Color inkSoft = Color(0xFF191533);
+  // Base oscura corporativa
+  static const Color inkDeep = Color(0xFF0A100D);
+  static const Color inkMid = Color(0xFF111A16);
+  static const Color inkSoft = Color(0xFF182620);
 
-  // Base clara
-  static const Color paper = Color(0xFFF5F3FF);
-  static const Color paperAlt = Color(0xFFEFF3FF);
+  // Base clara corporativa
+  static const Color paper = Color(0xFFF8FAF9);
+  static const Color paperAlt = Color(0xFFEFF4F1);
 
-  // Acentos neón
-  static const Color neonCyan = Color(0xFF22D3EE);
-  static const Color neonViolet = Color(0xFF8B5CF6);
-  static const Color neonMagenta = Color(0xFFF0ABFC);
-  static const Color neonAmber = Color(0xFFFBBF24);
-  static const Color neonLime = Color(0xFFA3E635);
+  // Acentos corporativos (verde esmeralda, verde azulado, menta suave)
+  static const Color neonCyan = Color(0xFF14B8A6);
+  static const Color neonViolet = Color(0xFF10B981);
+  static const Color neonMagenta = Color(0xFF6EE7B7);
+  static const Color neonAmber = Color(0xFFF59E0B);
+  static const Color neonLime = Color(0xFF34D399);
 
-  // Contrapartes oscuras de los acentos. Los neones anteriores son ilegibles
-  // sobre una superficie clara, asi que el tema claro usa estos.
+  // Contrapartes oscuras de los acentos para modo claro (alto contraste y legibilidad)
   // Nota: `ColorScheme.primary`/`secondary` ya resuelven a estos valores, por
   // eso las pantallas deben leerlos del `ColorScheme` y no repetir el hex.
-  static const Color violetDeep = Color(0xFF6D28D9);
-  static const Color cyanDeep = Color(0xFF0891B2);
+  static const Color violetDeep = Color(0xFF047857);
+  static const Color cyanDeep = Color(0xFF0F766E);
   static const Color amberDeep = Color(0xFFB45309);
 
   // Texto principal sobre superficie clara (`ColorScheme.onSurface`).
-  static const Color inkText = Color(0xFF14112B);
+  static const Color inkText = Color(0xFF131D19);
 
-  // Semánticos
-  static const Color success = Color(0xFF34D399);
-  static const Color danger = Color(0xFFF87171);
-  static const Color warning = Color(0xFFFBBF24);
+  // Semánticos corporativos
+  static const Color success = Color(0xFF10B981);
+  static const Color danger = Color(0xFFEF4444);
+  static const Color warning = Color(0xFFF59E0B);
 }
 
 /// Par de acentos del tema activo, listo para degradados.
@@ -192,7 +192,7 @@ class _AuroraPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final radius = size.shortestSide;
 
-    // Tres manchas que orbitan con fases distintas
+    // Tres manchas sutiles que orbitan con fases distintas
     final blobs = <({Color color, double phase, double scale, Offset anchor})>[
       (
         color: AppColors.neonViolet,
@@ -207,7 +207,7 @@ class _AuroraPainter extends CustomPainter {
         anchor: const Offset(0.9, 0.35),
       ),
       (
-        color: AppColors.neonMagenta,
+        color: AppColors.neonLime,
         phase: 0.66,
         scale: 0.7,
         anchor: const Offset(0.35, 1.0),
@@ -227,7 +227,7 @@ class _AuroraPainter extends CustomPainter {
       );
 
       final r = radius * blob.scale * 0.9;
-      final alpha = dark ? 0.30 : 0.22;
+      final alpha = dark ? 0.14 : 0.07;
 
       final paint = Paint()
         ..shader = RadialGradient(
@@ -302,11 +302,12 @@ class GlassSurface extends StatelessWidget {
     final k = opacity.clamp(0.0, 1.0);
     final surfaceColor = tint ??
         (isDark
-            ? const Color(0x14FFFFFF).withValues(alpha: 0.08 * k)
-            : Colors.white.withValues(alpha: 0.74 * k));
+            ? const Color(0xFF131D1A).withValues(alpha: 0.85 * k)
+            : Colors.white.withValues(alpha: 0.84 * k));
 
-    final borderColor =
-        isDark ? const Color(0x24FFFFFF) : accent.withValues(alpha: 0.18);
+    final borderColor = isDark
+        ? const Color(0xFF263831).withValues(alpha: 0.70)
+        : accent.withValues(alpha: 0.14);
 
     Widget content = Container(
       padding: padding,
@@ -316,17 +317,17 @@ class GlassSurface extends StatelessWidget {
         border: Border.all(color: borderColor, width: 1),
         boxShadow: [
           BoxShadow(
-            color: (isDark ? Colors.black : accent).withValues(
-              alpha: isDark ? 0.42 : 0.12,
+            color: (isDark ? Colors.black : const Color(0xFF0F241C)).withValues(
+              alpha: isDark ? 0.35 : 0.06,
             ),
-            blurRadius: isDark ? 26 : 22,
-            offset: const Offset(0, 12),
+            blurRadius: isDark ? 22 : 18,
+            offset: const Offset(0, 10),
           ),
           if (glow)
             BoxShadow(
-              color: accent.withValues(alpha: isDark ? 0.34 : 0.20),
-              blurRadius: 30,
-              spreadRadius: -6,
+              color: accent.withValues(alpha: isDark ? 0.20 : 0.12),
+              blurRadius: 24,
+              spreadRadius: -4,
             ),
         ],
       ),
@@ -524,15 +525,10 @@ class NeonButton extends StatelessWidget {
             ? [
                 BoxShadow(
                   color: theme.colorScheme.primary.withValues(
-                    alpha: isDark ? 0.45 : 0.32,
+                    alpha: isDark ? 0.30 : 0.20,
                   ),
-                  blurRadius: 26,
-                  offset: const Offset(0, 10),
-                ),
-                BoxShadow(
-                  color: theme.colorScheme.secondary.withValues(alpha: 0.24),
-                  blurRadius: 34,
-                  offset: const Offset(0, 14),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
                 ),
               ]
             : null,
@@ -610,17 +606,17 @@ class GlassIconButton extends StatelessWidget {
       height: size,
       width: size,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0x14FFFFFF) : const Color(0xA8FFFFFF),
+        color: isDark ? const Color(0xFF16221E) : const Color(0xF5FFFFFF),
         borderRadius: BorderRadius.circular(AppShape.md),
         border: Border.all(
           color: color?.withValues(alpha: 0.4) ??
-              (isDark ? const Color(0x24FFFFFF) : const Color(0x1A000000)),
+              (isDark ? const Color(0xFF263831) : const Color(0x18000000)),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -749,7 +745,7 @@ class AppTheme {
         margin: EdgeInsets.zero,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: isDark ? const Color(0xFF15122A) : Colors.white,
+        backgroundColor: isDark ? const Color(0xFF131D1A) : Colors.white,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppShape.lg),
@@ -773,7 +769,7 @@ class AppTheme {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor:
-            isDark ? const Color(0xFF221C42) : const Color(0xFF1B1733),
+            isDark ? const Color(0xFF182621) : const Color(0xFF131D1A),
         contentTextStyle: const TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.w500,
@@ -785,7 +781,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark ? const Color(0x0FFFFFFF) : const Color(0x8CFFFFFF),
+        fillColor: isDark ? const Color(0xFF141F1B) : const Color(0xF0FFFFFF),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: 17,
@@ -798,9 +794,9 @@ class AppTheme {
         ),
         prefixIconColor: muted,
         suffixIconColor: muted,
-        border: _fieldBorder(scheme.primary.withValues(alpha: 0.22)),
+        border: _fieldBorder(scheme.primary.withValues(alpha: 0.25)),
         enabledBorder: _fieldBorder(
-          isDark ? const Color(0x1FFFFFFF) : const Color(0x14000000),
+          isDark ? const Color(0xFF24362F) : const Color(0x18000000),
         ),
         focusedBorder: _fieldBorder(scheme.primary, width: 1.6),
         errorBorder: _fieldBorder(AppColors.danger.withValues(alpha: 0.6)),
@@ -812,7 +808,7 @@ class AppTheme {
         ),
       ),
       dividerTheme: DividerThemeData(
-        color: isDark ? const Color(0x1FFFFFFF) : const Color(0x12000000),
+        color: isDark ? const Color(0xFF1F2F29) : const Color(0x12000000),
         thickness: 1,
         space: 1,
       ),
@@ -829,13 +825,13 @@ class AppTheme {
         trackColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
               ? scheme.primary
-              : (isDark ? const Color(0x1FFFFFFF) : const Color(0x14000000)),
+              : (isDark ? const Color(0xFF24362F) : const Color(0x18000000)),
         ),
         trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
       ),
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF2A2450) : const Color(0xFF241F45),
+          color: isDark ? const Color(0xFF1C2B25) : const Color(0xFF182621),
           borderRadius: BorderRadius.circular(AppShape.xs),
         ),
         textStyle: const TextStyle(fontSize: 12, color: Colors.white),

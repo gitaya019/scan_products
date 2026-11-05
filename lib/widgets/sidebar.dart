@@ -103,7 +103,7 @@ class Sidebar extends StatelessWidget {
                     Center(
                       child: GlassChip(
                         icon: Icons.code_rounded,
-                        label: 'JACSOFT · v2.2.0',
+                        label: 'DEVAYA · v2.3.0',
                         color:
                             isDark ? AppColors.neonCyan : AppColors.neonViolet,
                       ),
