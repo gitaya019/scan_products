@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scan_products/main.dart';
 import 'package:scan_products/theme/app_theme.dart';
+import 'package:scan_products/theme/theme_controller.dart';
 
 import 'helpers/test_database.dart';
 
@@ -24,5 +25,19 @@ void main() {
     final scheme = AppTheme.dark.colorScheme;
     expect(scheme.primary, AppColors.neonViolet);
     expect(scheme.secondary, AppColors.neonCyan);
+  });
+
+  test('ThemeController inicia siempre en modo claro y permite alternar', () {
+    final controller = ThemeController();
+    expect(controller.value, ThemeMode.light);
+    expect(controller.isDark, isFalse);
+
+    controller.toggle();
+    expect(controller.value, ThemeMode.dark);
+    expect(controller.isDark, isTrue);
+
+    controller.toggle();
+    expect(controller.value, ThemeMode.light);
+    expect(controller.isDark, isFalse);
   });
 }

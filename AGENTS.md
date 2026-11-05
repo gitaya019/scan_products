@@ -12,8 +12,8 @@ Flutter inventory + point-of-sale app (Spanish, Colombian market, COP).
   - `ventas` (id, total, fecha ISO, estado `completada`|`anulada`, metodo_pago, recibido)
   - `venta_detalles` (id PK, venta_id FK CASCADE, producto_id, nombre, codigo, precio_unitario, cantidad, subtotal, unidad_medida, unidad_venta, venta_por_peso, iva)
 - **Orientation:** portrait only
-- **Theme:** light + dark, persisted with `shared_preferences`, toggle in the sidebar. Defaults to **dark**.
-- **Default theme mode:** dark
+- **Theme:** light + dark, toggle in the sidebar. Starts in **light** mode by default.
+- **Default theme mode:** light
 
 ## Design System
 

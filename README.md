@@ -42,7 +42,7 @@ sin conexión: los datos viven en el dispositivo.
 
 **Apariencia**
 - 🌌 Interfaz glassmorphism con acentos neón
-- 🌗 Tema claro y oscuro con preferencia persistida
+- 🌗 Tema claro por defecto y modo oscuro alternable desde la barra lateral
 
 ---
 
