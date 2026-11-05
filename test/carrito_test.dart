@@ -220,5 +220,65 @@ void main() {
       final item = CarritoItem(producto: producto, cantidad: 0.3);
       expect(item.subtotal, 1000);
     });
+
+    test('venta por unidades redondea el precio unitario y multiplica por cantidad', () {
+      final producto = Producto(
+        nombre: 'Galletas',
+        categoria: 'Snacks y dulces',
+        precio: 3630,
+        peso: 1,
+        stock: 50,
+        unidadMedida: 'unidad',
+        ventaPorPeso: false,
+      );
+
+      final item1 = CarritoItem(
+        producto: producto,
+        cantidad: 1,
+        redondeo: RedondeoCobro.multiploDe50,
+      );
+      expect(item1.subtotal, 3650);
+
+      final item2 = CarritoItem(
+        producto: producto,
+        cantidad: 2,
+        redondeo: RedondeoCobro.multiploDe50,
+      );
+      expect(item2.subtotal, 7300);
+
+      final item9 = CarritoItem(
+        producto: producto,
+        cantidad: 9,
+        redondeo: RedondeoCobro.multiploDe50,
+      );
+      expect(item9.subtotal, 32850);
+    });
+
+    test('papa cotizada por libra a 3630 pesada en gramos con multiploDe50', () {
+      final papa = Producto(
+        nombre: 'Papa',
+        categoria: 'Frescos',
+        precio: 3630,
+        peso: 1,
+        stock: 25000,
+        unidadMedida: 'lb',
+        unidadVenta: 'g',
+        ventaPorPeso: true,
+      );
+
+      final unaLibra = CarritoItem(
+        producto: papa,
+        cantidad: 500,
+        redondeo: RedondeoCobro.multiploDe50,
+      );
+      expect(unaLibra.subtotal, 3650);
+
+      final dosLibras = CarritoItem(
+        producto: papa,
+        cantidad: 1000,
+        redondeo: RedondeoCobro.multiploDe50,
+      );
+      expect(dosLibras.subtotal, 7300);
+    });
   });
 }

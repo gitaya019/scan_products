@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../models/marca.dart';
 import '../models/producto_model.dart';
+import '../services/cobro_controller.dart';
 import '../services/database_helper.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
+import '../utils/precios.dart';
 import '../utils/unidades.dart';
 import '../widgets/categoria_selector.dart';
 import '../widgets/marca_selector.dart';
@@ -458,6 +460,17 @@ class _PanelInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final modoCobro = CobroScope.of(context).value;
+    final precioCobro = Precios.redondearCobro(producto.precio, modoCobro);
+    final stockEnPrecio = producto.necesitaConversion
+        ? Unidades.aUnidadPrecio(
+            producto.stock,
+            unidadVenta: producto.unidad,
+            unidadPrecio: producto.unidadPrecio,
+          )
+        : producto.stock;
+    final valorInventario =
+        Precios.redondearMoneda(stockEnPrecio * precioCobro);
 
     return GlassSurface(
       blur: false,
@@ -482,7 +495,7 @@ class _PanelInfo extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Valor en inventario ${formatCurrency(producto.precio * producto.stock)}',
+                      'Valor en inventario ${formatCurrency(valorInventario)}',
                       style: theme.textTheme.bodyMedium,
                     ),
                   ],
@@ -490,7 +503,7 @@ class _PanelInfo extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.sm),
               NeonText(
-                text: formatCurrency(producto.precio),
+                text: formatCurrency(precioCobro),
                 style: theme.textTheme.headlineSmall,
               ),
             ],

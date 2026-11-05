@@ -10,7 +10,7 @@ Flutter inventory + point-of-sale app (Spanish, Colombian market, COP).
   - `marcas` (id, nombre UNIQUE, created_at)
   - `categorias` (id, nombre UNIQUE, created_at)
   - `ventas` (id, total, fecha ISO, estado `completada`|`anulada`, metodo_pago, recibido)
-  - `venta_detalles` (venta_id FK CASCADE, producto_id, nombre, codigo, precio_unitario, cantidad, subtotal, unidad_medida, unidad_venta, venta_por_peso, iva)
+  - `venta_detalles` (id PK, venta_id FK CASCADE, producto_id, nombre, codigo, precio_unitario, cantidad, subtotal, unidad_medida, unidad_venta, venta_por_peso, iva)
 - **Orientation:** portrait only
 - **Theme:** light + dark, persisted with `shared_preferences`, toggle in the sidebar. Defaults to **dark**.
 - **Default theme mode:** dark
@@ -35,6 +35,8 @@ adding UI.
 | `GlassChip` | Compact metadata pill (marca, unidad, IVA, stock) |
 | `NeonButton` | Primary gradient button with glow; `compact` and `expand` props |
 | `GlassIconButton` | Secondary frosted icon button |
+| `AppColors.success` / `danger` / `warning` | Semantic colors for feedback states (green, red, amber) |
+| `AppColors.paperAlt` | Alternate light surface (`#EFF3FF`) |
 | `AppTheme.dark` / `.light` | Full `ThemeData` per variant, incl. component themes |
 
 **Performance rule:** every `GlassSurface` inside a scrollable list must pass
@@ -86,7 +88,7 @@ above so light/dark stay coherent.
 - **`lib/main.dart`** — app root, portrait lock, `ValueListenableBuilder` on `ThemeController`
 - **`lib/theme/app_theme.dart`** — tokens + shared widgets (largest file, ~800 lines)
 - **`lib/theme/theme_controller.dart`** — `ValueNotifier<ThemeMode>`, loads/saves the preference
-- **`lib/data/categorias.dart`** — ~80 preset grocery categories in 10 sections (`List<({String seccion, List<String> categorias})>`)
+- **`lib/data/categorias.dart`** — 62 preset grocery categories in 10 sections (`List<({String seccion, List<String> categorias})>`)
 - **`lib/screens/home_screen.dart`** — product list, search, stock-low filter + badge, swipe-to-delete, quick-add stock
 - **`lib/screens/add_producto_screen.dart`** — create form in 3 sections; scanning detects duplicates and offers to add stock instead
 - **`lib/screens/edit_producto_screen.dart`** — edit form + "Valor en inventario" panel + delete
@@ -100,12 +102,12 @@ above so light/dark stay coherent.
 - **`lib/services/database_helper.dart`** — singleton, lazy init, cached `Database`
 - **`lib/services/cobro_controller.dart`** — `CobroController` (`ValueNotifier<RedondeoCobro>`, persisted via `shared_preferences`) + `CobroScope`, an `InheritedWidget` installed in `main.dart`. `CobroScope.of` returns a throwaway controller when no scope is present, so a screen can be pumped bare in a test
 - **`lib/utils/formatters.dart`** — `formatCurrency()`, `parseCurrency()`, `formatCantidad()`, `labelCantidad()`, `labelStock()`, `formatFecha()`, `etiquetaVuelto()`
-- **`lib/utils/precios.dart`** — business math: `precioSinIVA`, `ivaIncluido`, `precioDesdeCosto`, `margenDesdePrecios`, `ivaDeLineas`, `redondearMoneda`, `redondearCobro`, `parsePorcentaje`, `RedondeoCobro`
+- **`lib/utils/precios.dart`** — business math: `precioSinIVA`, `ivaIncluido`, `precioDesdeCosto`, `margenDesdePrecios`, `ganancia`, `ivaDeLineas`, `baseDeLineas`, `redondearMoneda`, `redondearCobro`, `parsePorcentaje`, `RedondeoCobro`, `tasaPorDefecto` (19), `tasasIVA` ([0, 5, 10, 19])
 - **`lib/utils/unidades.dart`** — unit conversion table (masa/volumen/conteo)
-- **`lib/widgets/sidebar.dart`** — drawer + theme switch + navigation, grouped in "Catalogo" (Categorias, Marcas) and "Cobro" (Opciones de cobro). `_MenuItem.detalle` carries the current value of a setting and must be wrapped in a `ValueListenableBuilder`, since `CobroScope` only notifies when the controller itself is swapped
+- **`lib/widgets/sidebar.dart`** — drawer + theme switch + navigation, grouped in "Operacion" (Nueva Venta, Historial de Ventas, Reporte de Ventas), "Catalogo" (Categorias, Marcas), "Cobro" (Opciones de cobro), and "Apariencia" (theme toggle). Shows `JACSOFT · vX.X.X` at the bottom. `_MenuItem.detalle` carries the current value of a setting and must be wrapped in a `ValueListenableBuilder`, since `CobroScope` only notifies when the controller itself is swapped
 - **`lib/widgets/producto_text_field.dart`** — base text field
 - **`lib/widgets/precio_field.dart`** — COP price field, reformats on focus loss
-- **`lib/widgets/precio_panel.dart`** — bidirectional costo ↔ margen ↔ precio with live preview, including a "Al cobrar" row that simulates the charge with the rounding mode currently selected in the sidebar. Its grey line prints **both** values, `Sin redondeo 3.240 · Redondeado 3.300`, so the difference is read rather than computed. Tappable via the `onEditarCobro` callback, which the screens wire to `OpcionesCobroScreen` — a widget in `lib/widgets/` never imports a screen itself
+- **`lib/widgets/precio_panel.dart`** — bidirectional costo ↔ margen ↔ precio with live preview, including a "Al cobrar" row that simulates the charge with the rounding mode currently selected in the sidebar. Its grey line prints **both** values, `Sin redondeo 3.240 · Redondeado 3.300`, so the difference is read rather than computed. Tappable via the `onEditarCobro` callback, which the screens wire to `OpcionesCobroScreen` — a widget in `lib/widgets/` never imports a screen itself. Exports `PrecioValores` (costo/precio/iva + computed margen), the value object emitted via `onChanged`
 - **`lib/widgets/presentacion_selector.dart`** — `PresentacionSelector` (units vs weight) + `UnidadVentaSelector` (balance unit)
 - **`lib/widgets/categoria_selector.dart`** — free-text field + preset sections + the shop's own catalog (`propias`)
 - **`lib/widgets/marca_selector.dart`** — brand autocomplete + inline creation
@@ -124,7 +126,7 @@ above so light/dark stay coherent.
 - **Step size:** `0.1` for kg/lb/L, `1` for g/mL and counting units. A gram-scale increment of 0,1 g is scale noise and would need 1.200 taps for one onion.
 - **IVA is INCLUDED in the sale price.** The customer pays exactly the shelf price; `Precios.precioSinIVA` only extracts the tax for reporting. Per-line rate is stored on `venta_detalles.iva` so a mixed-rate sale (0/5/10/19) still breaks down. Never change the charged total to show tax.
 - **The "precio base" the user types is the purchase COST.** Margin applies over cost (`costo × (1 + margen/100)`). `PrecioPanel` binds both directions with a `_sincronizando` guard so typing a margin doesn't cascade or move the cursor.
-- **Categories:** free text with ~80 presets as shortcuts. `Categorias.normalizar()` maps a case-insensitive match back to the canonical spelling so "quesos" and "Quesos" aren't two categories.
+- **Categories:** free text with 62 presets as shortcuts. `Categorias.normalizar()` maps a case-insensitive match back to the canonical spelling so "quesos" and "Quesos" aren't two categories.
 - **Brands:** `productos.marca` stays TEXT on purpose — a hand-typed product must not depend on a `marcas` row existing. The table only feeds autocomplete and inline creation; `sincronizarMarcasDesdeProductos()` back-fills from existing products.
 - **The category catalog mirrors the brand one** (`categorias`, v9): `productos.categoria` is TEXT for the same reason, the table feeds the sidebar CRUD plus the selector's `propias` suggestions, and `sincronizarCategoriasDesdeProductos()` back-fills. `renombrarCategoria()` cascades to `productos.categoria` (compared `COLLATE NOCASE`, because a pre-catalog row can hold a different spelling) inside one transaction; `eliminarCategoria()` returns `false` without touching anything while products still use it. `normalizarCategoria()` is the **read-only** canonical lookup used before saving, so a failed save can't leave an orphan row.
 - **Renaming a category or brand to itself is a no-op.** When the destination matches the origin `COLLATE NOCASE`, both renames return the stored spelling without writing. Otherwise typing `alfa` over `Alfa` would lowercase the catalog entry and drag every product along with it.

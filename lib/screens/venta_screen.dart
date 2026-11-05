@@ -940,7 +940,9 @@ class _DialogoCantidadVentaState extends State<_DialogoCantidadVenta> {
   void initState() {
     super.initState();
     _controller = TextEditingController(
-      text: widget.producto.ventaPorPeso ? '1.0' : '1',
+      text: widget.producto.ventaPorPeso
+          ? (widget.producto.unidad == 'g' ? '500' : '1.0')
+          : '1',
     );
   }
 

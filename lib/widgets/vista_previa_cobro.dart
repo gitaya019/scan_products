@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../models/carrito_item.dart';
 import '../models/producto_model.dart';
+import '../services/cobro_controller.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
+import '../utils/precios.dart';
 
 /// Muestra cuanto se va a cobrar por la cantidad que el usuario esta
 /// escribiendo, sin esperar a confirmar.
@@ -15,21 +17,28 @@ import '../utils/formatters.dart';
 class VistaPreviaCobro extends StatelessWidget {
   final Producto producto;
   final TextEditingController controller;
+  final RedondeoCobro? redondeo;
 
   const VistaPreviaCobro({
     super.key,
     required this.producto,
     required this.controller,
+    this.redondeo,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cantidad = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0;
+    final modoCobro = redondeo ?? CobroScope.of(context).value;
 
     // Se reutiliza CarritoItem para no duplicar la regla de conversion: si
     // mañana cambia el factor, el total y la vista previa cambian juntos.
-    final item = CarritoItem(producto: producto, cantidad: cantidad);
+    final item = CarritoItem(
+      producto: producto,
+      cantidad: cantidad,
+      redondeo: modoCobro,
+    );
     final total = item.subtotal;
     final hayCantidad = cantidad > 0;
 
@@ -80,7 +89,7 @@ class VistaPreviaCobro extends StatelessWidget {
             Text(
               'equivale a '
               '${CarritoItem.formatear(item.cantidadEnUnidadPrecio)} '
-              '${producto.unidadPrecio} a ${formatCurrency(producto.precio)}',
+              '${producto.unidadPrecio} a ${formatCurrency(item.precioCotizadoCobro)}',
               style: theme.textTheme.bodySmall?.copyWith(
                 fontSize: 11.5,
                 color: theme.colorScheme.onSurfaceVariant,

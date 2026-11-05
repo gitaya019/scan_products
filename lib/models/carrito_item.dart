@@ -39,22 +39,37 @@ class CarritoItem {
         )
       : cantidad;
 
+  /// Precio cotizado del producto con el redondeo de cobro aplicado.
+  ///
+  /// Si el precio es 3.630 y el modo es multiplos de 50, se cobra a 3.650.
+  double get precioCotizadoCobro =>
+      Precios.redondearCobro(producto.precio, redondeo);
+
   /// Precio de una unidad de [Producto.unidad].
   ///
   /// Si el precio esta en otra unidad hay que escalarlo para poder multiplicar
   /// por la cantidad capturada. Por eso 5.000 por lb son 10 por g.
+  /// Se calcula a partir del precio con redondeo de cobro aplicado.
   double get precioUnitarioVenta => producto.necesitaConversion
-      ? producto.precio *
+      ? precioCotizadoCobro *
           Unidades.aUnidadPrecio(
             1,
             unidadVenta: producto.unidad,
             unidadPrecio: producto.unidadPrecio,
           )
-      : producto.precio;
+      : precioCotizadoCobro;
 
   /// Total de la linea, ya redondeado al modo de cobro elegido.
-  double get subtotal =>
-      Precios.redondearCobro(precioUnitarioVenta * cantidad, redondeo);
+  ///
+  /// Para productos por unidades, si cada unidad se cobra a 3.650 segun el
+  /// redondeo elegido, 2 unidades son 7.300 y 9 unidades son 32.850.
+  /// Para productos por peso se calcula sobre la fraccion y se redondea.
+  double get subtotal {
+    if (!esPorPeso) {
+      return Precios.redondearMoneda(precioCotizadoCobro * cantidad);
+    }
+    return Precios.redondearCobro(precioUnitarioVenta * cantidad, redondeo);
+  }
 
   bool get esPorPeso => producto.ventaPorPeso;
 
