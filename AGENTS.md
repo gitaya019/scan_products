@@ -92,7 +92,7 @@ above so light/dark stay coherent.
 - **`lib/screens/home_screen.dart`** — product list, search, stock-low filter + badge, swipe-to-delete, quick-add stock
 - **`lib/screens/add_producto_screen.dart`** — create form in 3 sections; scanning detects duplicates and offers to add stock instead
 - **`lib/screens/edit_producto_screen.dart`** — edit form + "Valor en inventario" panel + delete
-- **`lib/screens/venta_screen.dart`** — POS: scan/search, cart, quantity dialog with live total, checkout (`_DialogoCobro`: method, bill, change)
+- **`lib/screens/venta_screen.dart`** — POS: live continuous scanner (`mobile_scanner`), scan/search, cart, quantity dialog with live total, checkout (`_DialogoCobro`: method, bill, change)
 - **`lib/screens/historial_ventas_screen.dart`** — sale history, detail dialog with tax breakdown, void (restores stock)
 - **`lib/screens/reporte_ventas_screen.dart`** — day/week/month totals, IVA breakdown, best-selling product
 - **`lib/screens/categorias_screen.dart`** — category catalog CRUD from the sidebar: search, create, rename (cascades to products), delete (blocked while in use)
@@ -248,7 +248,7 @@ fails if `CREATE TABLE` is missing a column that `_onUpgrade` adds via
 
 ## Dependencies
 
-Runtime: `sqflite`, `path`, `barcode_scan2`, `flutter_animate`, `intl`, `shared_preferences`.
+Runtime: `sqflite`, `path`, `barcode_scan2`, `mobile_scanner`, `flutter_animate`, `intl`, `shared_preferences`.
 
 Dev: `flutter_test`, `flutter_lints 5`, `sqflite_common_ffi`, `flutter_launcher_icons`.
 

@@ -2,6 +2,7 @@ import 'package:barcode_scan2/barcode_scan2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../models/carrito_item.dart';
 import '../models/metodo_pago.dart';
@@ -29,6 +30,15 @@ class _VentaScreenState extends State<VentaScreen> {
   List<Producto> _resultados = [];
   bool _buscando = false;
   bool _finalizando = false;
+
+  MobileScannerController? _scannerController;
+  DateTime? _ultimoEscaneo;
+  String? _ultimoCodigo;
+  bool _camaraPausada = false;
+  bool _torchActiva = false;
+
+  bool get _esEntornoDePrueba =>
+      WidgetsBinding.instance.runtimeType.toString().contains('Test');
 
   /// Modo de redondeo vigente.
   ///
@@ -75,6 +85,12 @@ class _VentaScreenState extends State<VentaScreen> {
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
+    if (!_esEntornoDePrueba) {
+      _scannerController = MobileScannerController(
+        autoStart: true,
+        detectionSpeed: DetectionSpeed.noDuplicates,
+      );
+    }
   }
 
   @override
@@ -106,6 +122,7 @@ class _VentaScreenState extends State<VentaScreen> {
 
   @override
   void dispose() {
+    _scannerController?.dispose();
     _cobro?.removeListener(_alCambiarRedondeo);
     _searchController
       ..removeListener(_onSearchChanged)
@@ -163,6 +180,93 @@ class _VentaScreenState extends State<VentaScreen> {
     }
     _limpiarBusqueda();
     _pedirCantidad(producto);
+  }
+
+  void _toggleCamara() {
+    if (_camaraPausada) {
+      _scannerController?.start();
+    } else {
+      _scannerController?.stop();
+    }
+    setState(() => _camaraPausada = !_camaraPausada);
+  }
+
+  void _toggleTorch() {
+    _scannerController?.toggleTorch();
+    setState(() => _torchActiva = !_torchActiva);
+  }
+
+  void _alDetectarCodigo(BarcodeCapture capture) {
+    if (_camaraPausada) return;
+    final barcodes = capture.barcodes;
+    if (barcodes.isEmpty) return;
+    final raw = barcodes.first.rawValue?.trim();
+    if (raw == null || raw.isEmpty) return;
+
+    final ahora = DateTime.now();
+    if (_ultimoCodigo == raw &&
+        _ultimoEscaneo != null &&
+        ahora.difference(_ultimoEscaneo!).inMilliseconds < 1500) {
+      return;
+    }
+    _ultimoCodigo = raw;
+    _ultimoEscaneo = ahora;
+
+    _procesarCodigoEscaneado(raw);
+  }
+
+  Future<void> _procesarCodigoEscaneado(String codigo) async {
+    HapticFeedback.lightImpact();
+    final producto =
+        await DatabaseHelper.instance.getProductoByCodigo(codigo);
+    if (!mounted) return;
+
+    if (producto == null) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('El codigo $codigo no esta registrado'),
+          backgroundColor: AppColors.danger.withValues(alpha: 0.92),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final indice = _indiceDe(producto);
+    if (indice >= 0) {
+      setState(() {
+        _items[indice].cantidad += _paso(_items[indice]);
+      });
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('+1 ${producto.nombre}'),
+          duration: const Duration(milliseconds: 1100),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      if (producto.ventaPorPeso) {
+        _pedirCantidad(producto);
+      } else {
+        setState(() {
+          _items.add(CarritoItem(
+            producto: producto,
+            cantidad: 1.0,
+            redondeo: _redondeo,
+          ));
+        });
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Agregado: ${producto.nombre}'),
+            duration: const Duration(milliseconds: 1100),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _escanear() async {
@@ -347,7 +451,15 @@ class _VentaScreenState extends State<VentaScreen> {
                         AppSpacing.md,
                         AppSpacing.sm,
                       ),
-                      child: _ZonaEscaneo(onEscanear: _escanear),
+                      child: _ZonaEscaneo(
+                        controller: _scannerController,
+                        onDetect: _alDetectarCodigo,
+                        camaraPausada: _camaraPausada,
+                        onTogglePausa: _toggleCamara,
+                        onToggleTorch: _toggleTorch,
+                        torchActiva: _torchActiva,
+                        onEscanearManual: _escanear,
+                      ),
                     ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -425,72 +537,231 @@ class _VentaScreenState extends State<VentaScreen> {
 }
 
 class _ZonaEscaneo extends StatelessWidget {
-  final VoidCallback onEscanear;
+  final MobileScannerController? controller;
+  final void Function(BarcodeCapture) onDetect;
+  final bool camaraPausada;
+  final VoidCallback onTogglePausa;
+  final VoidCallback onToggleTorch;
+  final bool torchActiva;
+  final VoidCallback onEscanearManual;
 
-  const _ZonaEscaneo({required this.onEscanear});
+  const _ZonaEscaneo({
+    required this.controller,
+    required this.onDetect,
+    required this.camaraPausada,
+    required this.onTogglePausa,
+    required this.onToggleTorch,
+    required this.torchActiva,
+    required this.onEscanearManual,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final accentColor = isDark ? AppColors.neonCyan : AppColors.neonViolet;
 
-    return Semantics(
-      button: true,
-      label: 'Escanear producto',
-      child: GestureDetector(
-        onTap: onEscanear,
-        child: Container(
-          // Altura minima, no fija: las dos lineas de texto necesitan mas
-          // espacio con la escala de fuente de accesibilidad activada y una
-          // `height` fija las desbordaria.
-          constraints: const BoxConstraints(minHeight: 66),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                theme.colorScheme.secondary
-                    .withValues(alpha: isDark ? 0.22 : 0.14),
-                theme.colorScheme.primary
-                    .withValues(alpha: isDark ? 0.22 : 0.14),
-              ],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            borderRadius: BorderRadius.circular(AppShape.lg),
-            border: Border.all(
-              color: (isDark ? AppColors.neonCyan : AppColors.neonViolet)
-                  .withValues(alpha: 0.45),
-              width: 1.4,
-            ),
+    return Container(
+      height: 140,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppShape.lg),
+        border: Border.all(
+          color: accentColor.withValues(alpha: 0.5),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: accentColor.withValues(alpha: isDark ? 0.15 : 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-          child: Row(
-            children: [
-              const SizedBox(width: AppSpacing.md),
-              Icon(
-                Icons.qr_code_scanner_rounded,
-                size: 30,
-                color: isDark ? AppColors.neonCyan : AppColors.neonViolet,
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppShape.lg - 1.5),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Visor de camara o estado inactivo / pausado
+            if (controller != null && !camaraPausada)
+              MobileScanner(
+                controller: controller,
+                onDetect: onDetect,
+                errorBuilder: (context, error) => _FondoCamaraInactiva(
+                  isDark: isDark,
+                  mensaje: 'Camara no disponible en este dispositivo',
+                  onTap: onEscanearManual,
+                ),
+              )
+            else
+              _FondoCamaraInactiva(
+                isDark: isDark,
+                mensaje: camaraPausada
+                    ? 'Camara pausada · Toque para reanudar'
+                    : 'Visor de escaneo listo',
+                onTap: controller != null ? onTogglePausa : onEscanearManual,
               ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Escanear producto',
-                        style: theme.textTheme.titleLarge),
-                    Text(
-                      'Usa la camara para agregar rapido',
-                      style:
-                          theme.textTheme.bodyMedium?.copyWith(fontSize: 12.5),
+
+            // Marco con guias de escaneo
+            if (!camaraPausada && controller != null)
+              Center(
+                child: Container(
+                  width: 220,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppShape.md),
+                    border: Border.all(
+                      color: accentColor.withValues(alpha: 0.7),
+                      width: 1.5,
                     ),
-                  ],
+                  ),
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: Container(
+                      height: 1.5,
+                      width: 200,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.transparent,
+                            AppColors.neonCyan,
+                            AppColors.neonViolet,
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+
+            // Barra superior de controles del visor
+            Positioned(
+              top: AppSpacing.xs,
+              left: AppSpacing.xs,
+              right: AppSpacing.xs,
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xs,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.inkDeep.withValues(alpha: 0.65),
+                        borderRadius: BorderRadius.circular(AppShape.pill),
+                        border: Border.all(
+                          color: accentColor.withValues(alpha: 0.4),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.qr_code_scanner_rounded,
+                            size: 13,
+                            color: accentColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              camaraPausada
+                                  ? 'Pausada'
+                                  : 'Escaneo continuo',
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  if (controller != null && !camaraPausada) ...[
+                    _BotonControlCamara(
+                      icono: torchActiva
+                          ? Icons.flash_on_rounded
+                          : Icons.flash_off_rounded,
+                      color: torchActiva ? AppColors.neonAmber : Colors.white,
+                      onTap: onToggleTorch,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                  ],
+                  if (controller != null)
+                    _BotonControlCamara(
+                      icono: camaraPausada
+                          ? Icons.play_arrow_rounded
+                          : Icons.pause_rounded,
+                      color: Colors.white,
+                      onTap: onTogglePausa,
+                    ),
+                ],
               ),
-              const SizedBox(width: AppSpacing.sm),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FondoCamaraInactiva extends StatelessWidget {
+  final bool isDark;
+  final String mensaje;
+  final VoidCallback? onTap;
+
+  const _FondoCamaraInactiva({
+    required this.isDark,
+    required this.mensaje,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              theme.colorScheme.secondary.withValues(alpha: isDark ? 0.35 : 0.2),
+              theme.colorScheme.primary.withValues(alpha: isDark ? 0.35 : 0.2),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.qr_code_scanner_rounded,
+                size: 28,
+                color: isDark ? AppColors.neonCyan : AppColors.neonViolet,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Escanear producto',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                mensaje,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: 12,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                ),
+              ),
             ],
           ),
         ),
@@ -499,6 +770,37 @@ class _ZonaEscaneo extends StatelessWidget {
   }
 }
 
+class _BotonControlCamara extends StatelessWidget {
+  final IconData icono;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _BotonControlCamara({
+    required this.icono,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 28,
+        width: 28,
+        decoration: BoxDecoration(
+          color: AppColors.inkDeep.withValues(alpha: 0.65),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.25),
+            width: 0.8,
+          ),
+        ),
+        child: Icon(icono, size: 15, color: color),
+      ),
+    );
+  }
+}
 class _CampoBusqueda extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onClear;
